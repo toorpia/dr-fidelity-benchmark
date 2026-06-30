@@ -2,6 +2,8 @@
 # See ENVIRONMENT.md (written at runtime) for the exact installed versions of a given run.
 #
 # torch is pinned to 2.3.0; the benchmark runs on CPU by default (a CPU-only wheel is fine).
+# Dependabot flags some torch advisories, but none are reachable here (no torch.load / RNN / jit /
+# quantized code paths are used) — see SECURITY.md. Pinned for bit-for-bit reproducibility.
 # toorpia is OPTIONAL: it is only needed to (re)generate toorPIA embeddings via the remote API.
 # Public users reproduce all figures/metrics from the committed external_embeddings/ caches WITHOUT
 # a toorPIA key, so toorpia does not need to be installed to reproduce the published results.
