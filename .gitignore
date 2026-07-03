@@ -1,0 +1,24 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# regenerable per-run embedding archive (large); the toorPIA caches in external_embeddings/ ARE committed
+results/embeddings/
+results/run.log
+
+# committed deliverables (do NOT ignore): results/*.csv, figures/, external_embeddings/, ENVIRONMENT.md
+
+# local Claude Code settings (not part of the benchmark)
+.claude/
+
+# private/internal sibling deliverable (separate repo) — never publish here
+to_umezaki_san/
+
+# undocumented N=3000 scaling run (kept local; the canonical report is N=1000)
+results/n3000/
+figures/n3000/
+results/run_n3000.log
+external_embeddings/**/n3000_*/
