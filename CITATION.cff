@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this benchmark, please cite it as below."
+type: software
+title: "DR Fidelity Benchmark — distance-preservation focus"
+authors:
+  - family-names: "Takaeda"
+    given-names: "Yoshio"
+    email: "takaeda@toor.jpn.com"
+    affiliation: "toor Inc."
+version: "1.0.0"
+date-released: "2026-07-04"
+license: MIT
+repository-code: "https://github.com/toorpia/dr-fidelity-benchmark"
+url: "https://toorpia.github.io/dr-fidelity-benchmark/"
+abstract: >-
+  A reproducible benchmark characterizing how faithfully dimensionality-reduction
+  (DR) methods — PCA, Isomap, t-SNE, UMAP, PyMDE, PCC, and toorPIA — preserve
+  distance structure when mapping high-dimensional data to 2D, on synthetic
+  datasets whose true geometry is known. Near and global distance bands are
+  evaluated separately via band-restricted Shepard correlation (fixed absolute
+  radius), with additional out-of-sample (addplot) and stability tests.
+keywords:
+  - dimensionality reduction
+  - benchmark
+  - distance preservation
+  - Shepard correlation
+  - embedding fidelity
+  - PCA
+  - t-SNE
+  - UMAP
+  - toorPIA
