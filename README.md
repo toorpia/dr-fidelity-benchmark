@@ -5,9 +5,10 @@ A reproducible benchmark characterizing how faithfully dimensionality-reduction 
 geometry is known.
 
 > **New here?** Read *What this measures* → *Results at a glance* → *Key terms* below (≈2 min), then
-> open **`REPORT.html`** for the results with figures and a step-by-step reading guide
-> (**`REPORT.md`** is the same content rendered as Markdown, readable directly on GitHub). The
-> rest of this file is the detailed methodology.
+> open the **published report** at <https://toorpia.github.io/dr-fidelity-benchmark/> for the
+> results with figures and a step-by-step reading guide (the same content as **`REPORT.html`** in
+> this repo; **`REPORT.md`** is the same content rendered as Markdown, readable directly on
+> GitHub). The rest of this file is the detailed methodology.
 
 ## What this measures (plain-language)
 

@@ -507,7 +507,8 @@ def build(embed: bool) -> str:
         "<h1>DR Fidelity Benchmark — Results Report</h1>"
         "<div class='sub'>Distance-preservation focus · 4 datasets · D=768 · N=1000 · "
         "<b>SNR=1</b> (realistic additive noise) · seeds: R=3 (stochastic methods; "
-        "transition — committed tables) · CPU/1-thread · reproducible.</div>"
+        "transition — committed tables) · CPU/1-thread · reproducible · "
+        "<a href='https://github.com/toorpia/dr-fidelity-benchmark'>code &amp; data on GitHub</a>.</div>"
         "<p class='blurb'><b>Thesis.</b> <b>Shepard ρ (full, p=100)</b> reflects <b>global-structure</b> "
         "reproduction. But in high dimensions distances concentrate, so most pairs sit at large "
         "distances and the full ρ is dominated by far pairs — the accuracy of <b>near</b> distances is "
@@ -710,8 +711,9 @@ def build(embed: bool) -> str:
         "This page shows <b>SNR=1</b> (realistic additive noise). Reproduce the full SNR sweep with "
         "<code>python run/benchmark.py --dataset all --methods all --seeds 3 --dim 768 --n 1000 "
         "--snr inf 4 1</code> (or just the reported level with <code>--snr 1</code>), then rebuild this "
-        "page with <code>python run/make_report.py</code>. See <code>README.md</code> for full "
-        "methodology.</footer>")
+        "page with <code>python run/make_report.py</code>. Code, data, and the full methodology "
+        "(<code>README.md</code>) live in the "
+        "<a href='https://github.com/toorpia/dr-fidelity-benchmark'>GitHub repository</a>.</footer>")
     parts.append("</div></body></html>")
     return "".join(parts)
 
