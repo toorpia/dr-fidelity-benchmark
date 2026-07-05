@@ -379,7 +379,7 @@ def noise_dims_section(embed: bool) -> str:
         return ""
     agg = pd.read_csv(p)
     dims_avail = sorted(int(d) for d in agg["dim"].unique())
-    landmark = [d for d in (6, 40, 80, 200, 768) if d in dims_avail] or dims_avail[:5]
+    landmark = [d for d in (6, 40, 80, 200, 768, 2000) if d in dims_avail] or dims_avail[:5]
     knn_keys = sorted({str(m) for m in agg["metric"].unique() if str(m).startswith("knn_acc_k")})
     groups = ([(knn_keys[0], "2-D kNN label accuracy (chance = 1/3)")] if knn_keys else []) + \
         [("full_shepard", "global Shepard ρ — vs ambient (the features as given)")]
@@ -438,13 +438,17 @@ def noise_dims_section(embed: bool) -> str:
         + figure_one("noise_dims", "dims_grid.png",
                      "2-D embeddings at landmark dimensions, 3 true clusters colored — watch "
                      "where each method's clusters dissolve as noise dimensions are added.", embed)
-        + "<p class='note'><b>Honest notes.</b> (1) n=500 (vs the main benchmark's n=1000): the "
-        "phenomenon is dimension-driven, and n=500 keeps the committed toorPIA cache keys "
-        "(<code>n500_dim{D}</code>) stable. (2) Bracketed ranges are bootstrap 95% CIs over seeds; "
-        "deterministic methods show a point value. (3) kNN label accuracy is leave-one-out in the "
-        "2-D embedding (k=10; 3 balanced clusters, chance = 1/3). (4) Reproduce: "
+        + "<p class='note'><b>Honest notes.</b> (1) n=1000, matching both the main benchmark and "
+        "the source notebook. (2) toorPIA is additionally probed at <b>D=2000</b> (effective SNR "
+        "≈ 0.0015); the other methods are already at chance well before D=768, so the extension "
+        "is run for toorPIA only (the empty cells read as 'not run', not as failures). "
+        "(3) Bracketed ranges are bootstrap 95% CIs over seeds; deterministic methods show a "
+        "point value. (4) kNN label accuracy is leave-one-out in the 2-D embedding (k=10; 3 "
+        "balanced clusters, chance = 1/3). (5) Reproduce: "
         "<code>python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all "
-        "--seeds 3 --n 500</code>.</p>")
+        "--seeds 3 --n 1000</code>, then "
+        "<code>python run/dimsweep.py --dims 2000 --methods toorPIA --seeds 3 --n 1000</code> "
+        "(results merge by (dim, method, seed)).</p>")
 
 
 def addplot_section(embed: bool) -> str:
@@ -788,7 +792,7 @@ def build(embed: bool) -> str:
         "<code>results/metrics_aggregated.csv</code> + <code>results/stability.csv</code> "
         "(+ <code>results/dimsweep_aggregated.csv</code> for the noise-dims supplement; reproduce "
         "it with <code>python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all "
-        "--seeds 3 --n 500</code>). "
+        "--seeds 3 --n 1000</code> plus <code>--dims 2000 --methods toorPIA</code>). "
         "This page shows <b>SNR=1</b> (realistic additive noise). Reproduce the full SNR sweep with "
         "<code>python run/benchmark.py --dataset all --methods all --seeds 3 --dim 768 --n 1000 "
         "--snr inf 4 1</code> (or just the reported level with <code>--snr 1</code>), then rebuild this "

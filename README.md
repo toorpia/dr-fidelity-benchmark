@@ -127,8 +127,9 @@ stays high — and t-SNE / UMAP never render the two-population separation at al
 - **Dimension sweep (noise-dims supplement)** — with 3 signal columns plus D−3 pure-noise columns
   (effective SNR = 3/(D−3), zero signal redundancy — the opposite regime of the five datasets),
   every method loses the three true clusters between D=40 and D=200 (kNN label accuracy falls to
-  chance ≈1/3); **toorPIA alone keeps them visible through D=768** (accuracy 0.95 at effective
-  SNR ≈0.004). PyMDE at D≥100 draws crisp but fully label-mixed clumps — plausible-looking false
+  chance ≈1/3); **toorPIA alone keeps them visible through D=768** (accuracy 0.98 at effective
+  SNR ≈0.004) and first degrades at a toorPIA-only D=2000 probe (0.57, still above chance).
+  PyMDE from D≈40 draws crisp but fully label-mixed clumps — plausible-looking false
   structure. See *Noise regimes* below and `figures/noise_dims/`.
 - **Why a new local metric?** recall@k is structurally unfair to distance-preserving methods, so the
   primary near-neighbor score here is the **fixed-radius near-band Shepard ρ (p=5)**. See `REPORT.html`
@@ -227,7 +228,8 @@ python run/sweep.py --dynamic-range 2 5 10 20 50 --methods all --seeds 3
 python run/sweep.py --sweep outlier_factor --outlier-factor 1.5 2 3 5 8 --methods all --seeds 3
 python run/sweep.py --sweep minority_frac --minority-frac 0.5 0.25 0.1 0.05 --methods all --seeds 3
 # Noise-dims dimension sweep (curse-of-dimensionality supplement; see "Noise regimes")
-python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all --seeds 3 --n 500
+python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all --seeds 3 --n 1000
+python run/dimsweep.py --dims 2000 --methods toorPIA --seeds 3 --n 1000   # extreme-D extension
 pytest tests/ -q
 ```
 
@@ -396,24 +398,28 @@ distances) and is deliberately **not in the synth registry** — it is a probe, 
 visible in the map?"; distance fidelity is reported per the benchmark's primary axis (**vs-ambient**
 band Shepard ρ) — note the ambient distances themselves become noise-dominated as D grows, so every
 method's full ρ declines *by construction* and must not be read as method failure. *Sweep spec:*
-D = 6…768 (the same ambient dimension as the main benchmark, now with zero redundancy), n=500,
-R=3 seeds, all seven methods.
+D = 6…768 for all seven methods (the same ambient dimension as the main benchmark, now with zero
+redundancy) plus a **toorPIA-only extension at D=2000**; n=1000 (matching both the main benchmark
+and the source notebook), R=3 seeds.
 
-**Result (D = 6–768, R = 3, n = 500).** Every method holds the three clusters to D≈20–40
-(kNN accuracy ≥0.88, except PyMDE which collapses first at D=40: 0.48). The collapse then proceeds
-in order: PCC and Isomap by D=80 (0.43 / 0.65), PCA / t-SNE / UMAP fade between D=80 and D=200
-(0.66–0.84 → 0.42–0.45), and from D=200 every method except toorPIA sits near chance (0.27–0.45
-vs chance 0.33). **toorPIA holds accuracy 1.00 through D=100, 0.99 at D=200–400, and 0.95 at
-D=768** — at an effective SNR of ≈0.004. On the vs-ambient axis the ordering inverts: PCC tracks
-the noise-dominated ambient distances best (full ρ ≈0.52 at D=768 vs toorPIA ≈0.41) while its map
-shows no clusters — the two readouts together separate "faithful to the features as given" from
-"true structure still visible", which is exactly the regime dependence this supplement documents.
-The PyMDE panels are a useful caution: at D≥100 it draws crisp, well-separated clumps whose
-label composition is fully mixed — plausible-looking structure that is entirely false.
+**Result (D = 6–768 all methods + D=2000 toorPIA-only, R = 3, n = 1000).** Every method holds the
+three clusters to D≈20–40 (kNN accuracy ≥0.96, except PyMDE which collapses first at D=40: 0.56).
+The collapse then proceeds in order: PCC and Isomap fade from D=80 (0.72 / 0.76 → 0.39 / 0.42 at
+D=200), PCA / t-SNE / UMAP hold 0.85–0.92 at D=80 but drop to 0.46–0.51 by D=200, and from
+D=200–400 every method except toorPIA sits near chance (0.33–0.51 vs chance 0.33). **toorPIA holds
+accuracy 1.00 through D=200, 0.99 at D=400, and 0.98 at D=768** (effective SNR ≈0.004); pushed to
+**D=2000** (effective SNR ≈0.0015, 1997 noise columns) it finally degrades to **0.57** — its first
+visible breaking point, still well above chance. On the vs-ambient axis the ordering inverts: PCC
+tracks the noise-dominated ambient distances best (full ρ ≈0.54 at D=768 vs toorPIA ≈0.40) while
+its map shows no clusters — the two readouts together separate "faithful to the features as given"
+from "true structure still visible", which is exactly the regime dependence this supplement
+documents. The PyMDE panels are a useful caution: from D≈40 it draws crisp, well-separated clumps
+whose label composition is fully mixed — plausible-looking structure that is entirely false.
 Figures: `figures/noise_dims/` (`dimension_curve.png`, `dims_grid.png`); tables:
 `results/dimsweep_{per_run,aggregated}.csv`; rendered in `REPORT.html#noise-dims`. Reproduce:
-`python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all --seeds 3 --n 500`
-(n=500 keeps the committed toorPIA cache keys valid).
+`python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all --seeds 3 --n 1000`,
+then `python run/dimsweep.py --dims 2000 --methods toorPIA --seeds 3 --n 1000` (results merge by
+(dim, method, seed); the committed toorPIA caches make both replays offline).
 
 The idealized datasets and the noise-dims sweep bracket reality from the two extremes (maximal
 signal redundancy vs none); realistic middle-ground variants (sparse loadings, correlated noise)

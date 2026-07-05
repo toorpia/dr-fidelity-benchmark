@@ -26,7 +26,7 @@ from sklearn.datasets import make_blobs
 from sklearn.preprocessing import StandardScaler
 
 
-def make_noise_dims(n: int = 500, d: int = 100, seed: int = 42, n_principal: int = 3,
+def make_noise_dims(n: int = 1000, d: int = 100, seed: int = 42, n_principal: int = 3,
                     cluster_std: float = 0.005, standardize: bool = True) -> dict:
     """Generate the noise-dims dataset.
 

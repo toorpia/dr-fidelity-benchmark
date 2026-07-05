@@ -5,9 +5,12 @@ signal columns + D-3 standard-normal noise columns), embed every method over R s
 distance fidelity vs the 3-D truth plus 2-D label-separation scores (kNN accuracy / silhouette).
 Quantified replication of the notebook experiment ``01_hi_dimensional_data_anlaysis.ipynb``.
 
-    python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all --seeds 3 --n 500
+    python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all --seeds 3 --n 1000
+    python run/dimsweep.py --dims 2000 --methods toorPIA --seeds 3 --n 1000   # extreme-D extension
 
-Unlike ``run/sweep.py``, a ``SkipMethod`` here skips only the current dim (no permanent blacklist):
+Results MERGE into an existing ``dimsweep_per_run.csv`` by (dim, method, seed), so partial runs
+(like the toorPIA-only extension above) extend the sweep without clobbering it. Unlike
+``run/sweep.py``, a ``SkipMethod`` here skips only the current dim (no permanent blacklist):
 high-D toorPIA API calls are the likeliest to fail transiently, and every successful embedding is
 cached under ``external_embeddings/noise_dims/`` so a re-run is cheap.
 """
@@ -58,8 +61,8 @@ def main(argv=None):
     p.add_argument("--dims", nargs="+", type=int,
                    default=[6, 10, 20, 40, 80, 100, 200, 400, 768])
     p.add_argument("--methods", default="all")
-    p.add_argument("--seeds", type=int, default=1)
-    p.add_argument("--n", type=int, default=500)
+    p.add_argument("--seeds", type=int, default=3)
+    p.add_argument("--n", type=int, default=1000)
     p.add_argument("--n-principal", type=int, default=3)
     p.add_argument("--cluster-std", type=float, default=0.005)
     p.add_argument("--knn-k", type=int, default=10)
@@ -114,7 +117,18 @@ def main(argv=None):
                 print(f"  {method:9s} runs={k}", flush=True)
 
     per_run = pd.DataFrame(rows)
-    per_run.to_csv(out_dir / "dimsweep_per_run.csv", index=False)
+    # merge into an existing table: rows whose (dim, method, seed) was re-run now are replaced,
+    # everything else is kept verbatim (same contract as run/benchmark.py) -- this lets a partial
+    # run (e.g. toorPIA-only at an extra dimension) extend the committed sweep without clobbering
+    per_run_path = out_dir / "dimsweep_per_run.csv"
+    if len(per_run) and per_run_path.exists():
+        old = pd.read_csv(per_run_path)
+        key = ["dim", "method", "seed"]
+        reran = set(map(tuple, per_run[key].drop_duplicates().itertuples(index=False)))
+        keep = old[[t not in reran for t in old[key].itertuples(index=False, name=None)]]
+        per_run = pd.concat([keep, per_run], ignore_index=True)
+        per_run = per_run.sort_values(key).reset_index(drop=True)
+    per_run.to_csv(per_run_path, index=False)
 
     # aggregate: median + bootstrap 95% CI per (method, dim, metric)
     sweep_metrics = ["shepard_p100__vs_truth", "shepard_p20__vs_truth", "full_shepard",
