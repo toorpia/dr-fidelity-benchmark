@@ -128,7 +128,8 @@ stays high — and t-SNE / UMAP never render the two-population separation at al
   (effective SNR = 3/(D−3), zero signal redundancy — the opposite regime of the five datasets),
   every method loses the three true clusters between D=40 and D=200 (kNN label accuracy falls to
   chance ≈1/3); **toorPIA alone keeps them visible through D=768** (accuracy 0.98 at effective
-  SNR ≈0.004) and first degrades at a toorPIA-only D=2000 probe (0.57, still above chance).
+  SNR ≈0.004) and first degrades at a toorPIA-only D=2000 probe (kNN accuracy 0.56–0.88 depending
+  on the noise realization — the onset of its breaking regime, still above chance in every draw).
   PyMDE from D≈40 draws crisp but fully label-mixed clumps — plausible-looking false
   structure. See *Noise regimes* below and `figures/noise_dims/`.
 - **Why a new local metric?** recall@k is structurally unfair to distance-preserving methods, so the
@@ -408,8 +409,13 @@ The collapse then proceeds in order: PCC and Isomap fade from D=80 (0.72 / 0.76 
 D=200), PCA / t-SNE / UMAP hold 0.85–0.92 at D=80 but drop to 0.46–0.51 by D=200, and from
 D=200–400 every method except toorPIA sits near chance (0.33–0.51 vs chance 0.33). **toorPIA holds
 accuracy 1.00 through D=200, 0.99 at D=400, and 0.98 at D=768** (effective SNR ≈0.004); pushed to
-**D=2000** (effective SNR ≈0.0015, 1997 noise columns) it finally degrades to **0.57** — its first
-visible breaking point, still well above chance. On the vs-ambient axis the ordering inverts: PCC
+**D=2000** (effective SNR ≈0.0015, 1997 noise columns) it enters its breaking regime — and there
+the outcome becomes **noise-realization dependent**: across six independent noise realizations
+(data seeds 0–3, the committed sweep's SeedSequence realization, and the source notebook's global
+RNG stream — all through the same API at `random_seed=42`) the kNN accuracy spans **0.56–0.88**
+(median ≈0.79); the committed sweep's realization happens to be the lowest of the six. Method-seed
+variance stays negligible (±0.01) — the variance is across noise *draws*, the signature of a
+critical regime, and every realization stays well above chance. On the vs-ambient axis the ordering inverts: PCC
 tracks the noise-dominated ambient distances best (full ρ ≈0.54 at D=768 vs toorPIA ≈0.40) while
 its map shows no clusters — the two readouts together separate "faithful to the features as given"
 from "true structure still visible", which is exactly the regime dependence this supplement
