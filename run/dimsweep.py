@@ -175,9 +175,7 @@ def main(argv=None):
         if len(agg):
             figures.dimension_curve(
                 agg, present, figdir,
-                panels=(("full_shepard",
-                         "global Shepard ρ — vs ambient (the features as given)"),
-                        (knn_key, f"2-D kNN label accuracy (k={args.knn_k})")))
+                panels=((knn_key, f"2-D kNN label accuracy (k={args.knn_k})"),))
 
     if len(per_run):
         pivot = per_run.pivot_table(index="method", columns="dim", values=knn_key, aggfunc="median")

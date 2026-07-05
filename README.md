@@ -397,15 +397,17 @@ deliberately **not isometric** (the ground truth is the 3 signal columns, not th
 distances) and is deliberately **not in the synth registry** — it is a probe, not a sixth dataset.
 *Readouts:* leave-one-out **kNN label accuracy** (k=10, chance 1/3) and 2-D silhouette
 (`metrics/label_separation.py`) answer the operational question "are the three true clusters still
-visible in the map?"; distance fidelity is reported per the benchmark's primary axis (**vs-ambient**
-band Shepard ρ) — note the ambient distances themselves become noise-dominated as D grows, so every
-method's full ρ declines *by construction* and must not be read as method failure. *Sweep spec:*
+visible in the map?". Distance-band Shepard ρ is deliberately **not** headlined for this probe: a
+global ρ is only meaningful paired with its near band (the central point of this benchmark's
+methodology), and neither band reads cleanly against ambient distances that are noise-dominated
+by construction — the full metric set is still computed into `results/dimsweep_per_run.csv`.
+*Sweep spec:*
 D = 6…768 for all seven methods (the same ambient dimension as the main benchmark, now with zero
 redundancy) plus **toorPIA-only extensions at D=1500 and D=2000** (5 noise realizations × 3 method
 seeds each — the breaking regime is realization-sensitive); n=1000 (matching both the main
 benchmark and the source notebook), R=3 seeds.
 
-**Result (D = 6–768 all methods + D=2000 toorPIA-only, R = 3, n = 1000).** Every method holds the
+**Result (D = 6–768 all methods + D=1500/2000 toorPIA-only, R = 3, n = 1000).** Every method holds the
 three clusters to D≈20–40 (kNN accuracy ≥0.96, except PyMDE which collapses first at D=40: 0.56).
 The collapse then proceeds in order: PCC and Isomap fade from D=80 (0.72 / 0.76 → 0.39 / 0.42 at
 D=200), PCA / t-SNE / UMAP hold 0.85–0.92 at D=80 but drop to 0.46–0.51 by D=200, and from
@@ -418,11 +420,7 @@ seeds**: at **D=1500** accuracy is **0.92** and realization-stable (per-realizat
 (per-realization medians span 0.58–0.88 while method-seed variance stays ±0.01: the variance is
 across noise *draws*, the signature of a critical regime), and every realization stays well above
 chance. The source notebook's own noise realization — a sixth, independent draw through the same
-API — lands at 0.84, consistent with this range. On the vs-ambient axis the ordering inverts: PCC
-tracks the noise-dominated ambient distances best (full ρ ≈0.54 at D=768 vs toorPIA ≈0.40) while
-its map shows no clusters — the two readouts together separate "faithful to the features as given"
-from "true structure still visible", which is exactly the regime dependence this supplement
-documents. The PyMDE panels are a useful caution: from D≈40 it draws crisp, well-separated clumps
+API — lands at 0.84, consistent with this range. The PyMDE panels are a useful caution: from D≈40 it draws crisp, well-separated clumps
 whose label composition is fully mixed — plausible-looking structure that is entirely false.
 Figures: `figures/noise_dims/` (`dimension_curve.png`, `dims_grid.png`); tables:
 `results/dimsweep_{per_run,aggregated}.csv`; rendered in `REPORT.html#noise-dims`. Reproduce:

@@ -276,17 +276,17 @@ def dims_grid(grid, labels, methods, dims, out_dir, fname="dims_grid.png"):
 
 
 def dimension_curve(agg_dims, methods, out_dir,
-                    panels=(("full_shepard",
-                             "global Shepard ρ — vs ambient (the features as given)"),
-                            ("knn_acc_k10", "2-D kNN label accuracy (k=10)"))):
-    """Fidelity vs total dimensionality, one CI-ribboned line per method.
+                    panels=(("knn_acc_k10", "2-D kNN label accuracy (k=10)"),)):
+    """Cluster survival vs total dimensionality, one CI-ribboned line per method.
 
     ``agg_dims`` columns: method, dim, metric, median, ci_lo, ci_hi. kNN-accuracy panels get a dashed
-    chance line at 1/3 (three balanced clusters).
+    chance line at 1/3 (three balanced clusters). Distance-band Shepard ρ is deliberately not
+    plotted here: a global ρ is only meaningful paired with its near band, and neither reads
+    cleanly against the noise-dominated ambient of this probe (metrics remain in the CSVs).
     """
     from matplotlib.ticker import ScalarFormatter
 
-    fig, axes = plt.subplots(1, len(panels), figsize=(6.5 * len(panels), 5), sharex=True,
+    fig, axes = plt.subplots(1, len(panels), figsize=(7.2 * len(panels), 5), sharex=True,
                              squeeze=False)
     for ax, (metric, title) in zip(axes.flat, panels):
         any_line = False
@@ -313,7 +313,7 @@ def dimension_curve(agg_dims, methods, out_dir,
         ax.grid(alpha=0.3, which="both")
         if any_line:
             ax.legend(fontsize=8, ncol=2)
-    fig.suptitle("Curse of dimensionality (noise-dims): fidelity vs total dimensionality",
+    fig.suptitle("Curse of dimensionality (noise-dims): cluster survival vs total dimensionality",
                  fontsize=12)
     out = Path(out_dir) / "dimension_curve.png"
     fig.tight_layout(); fig.savefig(out, dpi=130); plt.close(fig)

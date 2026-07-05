@@ -381,8 +381,9 @@ def noise_dims_section(embed: bool) -> str:
     dims_avail = sorted(int(d) for d in agg["dim"].unique())
     landmark = [d for d in (6, 40, 80, 200, 768, 1500, 2000) if d in dims_avail] or dims_avail[:5]
     knn_keys = sorted({str(m) for m in agg["metric"].unique() if str(m).startswith("knn_acc_k")})
-    groups = ([(knn_keys[0], "2-D kNN label accuracy (chance = 1/3)")] if knn_keys else []) + \
-        [("full_shepard", "global Shepard ρ — vs ambient (the features as given)")]
+    if not knn_keys:
+        return ""
+    groups = [(knn_keys[0], "2-D kNN label accuracy (chance = 1/3)")]
 
     def cell(m, dim, metric):
         r = agg[(agg.method == m) & (agg.dim == dim) & (agg.metric == metric)]
@@ -423,20 +424,21 @@ def noise_dims_section(embed: bool) -> str:
         "datasets cleanly, the redundancy-free regime (effective SNR ≈ 0.004) drives six of seven "
         "to chance — the ambient dimension itself was never the difficulty; the noise geometry "
         "is. The probe is deliberately NOT a sixth registry dataset: its ground truth "
-        "(the 3 signal columns) is intentionally not isometric to the ambient features. Distance "
-        "fidelity is scored <b>vs ambient</b> — the features as given, this benchmark's primary "
-        "axis — and note the ambient distances themselves become noise-dominated as D grows, so "
-        "every method's full ρ declines by construction; the <b>kNN label-accuracy</b> column is "
-        "the direct readout of whether the true clusters remain visible in the 2-D map. Read the "
-        "results as <b>regime dependence</b> — rankings from the redundancy-rich datasets above "
-        "need not transfer to sparse/irrelevant-feature regimes, and vice versa.</p>"
+        "(the 3 signal columns) is intentionally not isometric to the ambient features. The "
+        "readout is the <b>kNN label accuracy</b> — the direct operational answer to \"are the "
+        "three true clusters still visible in the 2-D map?\". Distance-band Shepard ρ is "
+        "deliberately not shown here: a global ρ is only meaningful paired with its near band "
+        "(the point of this benchmark's methodology), and neither band reads cleanly against this "
+        "probe's noise-dominated ambient distances — the full metric set remains in "
+        "<code>results/dimsweep_per_run.csv</code>. Read the results as <b>regime dependence</b> "
+        "— rankings from the redundancy-rich datasets above need not transfer to "
+        "sparse/irrelevant-feature regimes, and vice versa.</p>"
         + table
         + figure_one("noise_dims", "dimension_curve.png",
-                     "Fidelity vs total dimensionality D (log axis): global Shepard ρ vs ambient "
-                     "(the features as given), and 2-D kNN label accuracy (chance = 1/3, dashed); "
-                     "median + bootstrap 95% CI ribbon per method. The D=1500 and D=2000 points "
-                     "pool 5 noise realizations × 3 method seeds each, so their ribbons show "
-                     "realization spread.", embed)
+                     "2-D kNN label accuracy vs total dimensionality D (log10 axis; chance = 1/3 "
+                     "dashed); median + bootstrap 95% CI ribbon per method. The D=1500 and D=2000 "
+                     "points pool 5 noise realizations × 3 method seeds each, so their ribbons "
+                     "show realization spread.", embed)
         + figure_one("noise_dims", "dims_grid.png",
                      "2-D embeddings at landmark dimensions, 3 true clusters colored — watch "
                      "where each method's clusters dissolve as noise dimensions are added.", embed)
