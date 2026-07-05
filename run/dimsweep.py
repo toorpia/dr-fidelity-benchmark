@@ -6,7 +6,8 @@ distance fidelity vs the 3-D truth plus 2-D label-separation scores (kNN accurac
 Quantified replication of the notebook experiment ``01_hi_dimensional_data_anlaysis.ipynb``.
 
     python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all --seeds 3 --n 1000
-    python run/dimsweep.py --dims 2000 --methods toorPIA --seeds 3 --n 1000   # extreme-D extension
+    # extreme-D extension: 5 noise realizations x 3 method seeds (realization-sensitive regime)
+    python run/dimsweep.py --dims 1500 2000 --methods toorPIA --seeds 3 --n 1000 --data-seed 42 0 1 2 3
 
 Results MERGE into an existing ``dimsweep_per_run.csv`` by (dim, method, seed), so partial runs
 (like the toorPIA-only extension above) extend the sweep without clobbering it. Unlike
@@ -67,7 +68,9 @@ def main(argv=None):
     p.add_argument("--cluster-std", type=float, default=0.005)
     p.add_argument("--knn-k", type=int, default=10)
     p.add_argument("--device", default="cpu")
-    p.add_argument("--data-seed", type=int, default=42)
+    p.add_argument("--data-seed", nargs="+", type=int, default=[42],
+                   help="one or more NOISE-REALIZATION seeds; multiple seeds probe realization "
+                        "sensitivity (used at the extreme-D breaking regime)")
     p.add_argument("--out", default=str(ROOT / "results"))
     p.add_argument("--figdir", default=str(ROOT / "figures" / "noise_dims"))
     p.add_argument("--no-figures", action="store_true")
@@ -84,46 +87,56 @@ def main(argv=None):
     grid = {m: {} for m in methods}
     labels_ref = None
     for dim in args.dims:
-        base = make_noise_dims(n=args.n, d=dim, seed=args.data_seed,
-                               n_principal=args.n_principal, cluster_std=args.cluster_std)
-        X, X_truth, labels = base["clean"], base["truth_coords"], base["labels"]
-        labels_ref = labels
-        print(f"\n=== D={dim}  ({dim - args.n_principal} noise dims) ===", flush=True)
-        for method in methods:
-            m = get_method(method)
-            seeds = range(args.seeds) if m.stochastic else [0]
-            ctx = {"root": str(ROOT), "dataset": "noise_dims", "snr": float("inf"),
-                   "tag": f"n{args.n}_dim{dim}"}
-            k = 0
-            for seed in seeds:
-                set_seeds(seed)
-                try:
-                    Y = m.embed(X, seed=seed, device=args.device, context=ctx)
-                except SkipMethod as e:
-                    print(f"  [skip] {method} dim{dim}: {e}"); break
-                except Exception as e:  # noqa: BLE001
-                    print(f"  [warn] {method} dim{dim} seed{seed}: {type(e).__name__}: {e}"); continue
-                emb_dir = out_dir / "embeddings" / "noise_dims" / f"dim{dim}" / method
-                emb_dir.mkdir(parents=True, exist_ok=True)
-                np.save(emb_dir / f"seed{seed}.npy", Y)
-                if dim not in grid[method]:
-                    grid[method][dim] = Y
-                row = dict(dim=dim, n=args.n, method=method, seed=seed, stochastic=m.stochastic)
-                row.update(compute_all(X, Y, X_truth, include_per_point=False, labels=labels))
-                row[knn_key] = knn_label_accuracy(Y, labels, k=args.knn_k)
-                row["silhouette_2d"] = silhouette_by_label(Y, labels)
-                rows.append(row); k += 1
-            if k:
-                print(f"  {method:9s} runs={k}", flush=True)
+        for ds in args.data_seed:
+            base = make_noise_dims(n=args.n, d=dim, seed=ds,
+                                   n_principal=args.n_principal, cluster_std=args.cluster_std)
+            X, X_truth, labels = base["clean"], base["truth_coords"], base["labels"]
+            if ds == args.data_seed[0]:
+                labels_ref = labels
+            print(f"\n=== D={dim}  ({dim - args.n_principal} noise dims)  data_seed={ds} ===",
+                  flush=True)
+            for method in methods:
+                m = get_method(method)
+                seeds = range(args.seeds) if m.stochastic else [0]
+                # data seed 42 keeps the historical tag so the committed toorPIA caches stay valid
+                tag = f"n{args.n}_dim{dim}" if ds == 42 else f"n{args.n}_dim{dim}_ds{ds}"
+                ctx = {"root": str(ROOT), "dataset": "noise_dims", "snr": float("inf"),
+                       "tag": tag}
+                k = 0
+                for seed in seeds:
+                    set_seeds(seed)
+                    try:
+                        Y = m.embed(X, seed=seed, device=args.device, context=ctx)
+                    except SkipMethod as e:
+                        print(f"  [skip] {method} dim{dim}: {e}"); break
+                    except Exception as e:  # noqa: BLE001
+                        print(f"  [warn] {method} dim{dim} ds{ds} seed{seed}: "
+                              f"{type(e).__name__}: {e}"); continue
+                    sub = f"dim{dim}" if ds == 42 else f"dim{dim}_ds{ds}"
+                    emb_dir = out_dir / "embeddings" / "noise_dims" / sub / method
+                    emb_dir.mkdir(parents=True, exist_ok=True)
+                    np.save(emb_dir / f"seed{seed}.npy", Y)
+                    if dim not in grid[method] and ds == args.data_seed[0]:
+                        grid[method][dim] = Y
+                    row = dict(dim=dim, n=args.n, data_seed=ds, method=method, seed=seed,
+                               stochastic=m.stochastic)
+                    row.update(compute_all(X, Y, X_truth, include_per_point=False, labels=labels))
+                    row[knn_key] = knn_label_accuracy(Y, labels, k=args.knn_k)
+                    row["silhouette_2d"] = silhouette_by_label(Y, labels)
+                    rows.append(row); k += 1
+                if k:
+                    print(f"  {method:9s} runs={k}", flush=True)
 
     per_run = pd.DataFrame(rows)
-    # merge into an existing table: rows whose (dim, method, seed) was re-run now are replaced,
-    # everything else is kept verbatim (same contract as run/benchmark.py) -- this lets a partial
-    # run (e.g. toorPIA-only at an extra dimension) extend the committed sweep without clobbering
+    # merge into an existing table: rows whose (dim, data_seed, method, seed) was re-run now are
+    # replaced, everything else is kept verbatim (same contract as run/benchmark.py) -- this lets a
+    # partial run (e.g. toorPIA-only at an extra dimension) extend the committed sweep
     per_run_path = out_dir / "dimsweep_per_run.csv"
     if len(per_run) and per_run_path.exists():
         old = pd.read_csv(per_run_path)
-        key = ["dim", "method", "seed"]
+        if "data_seed" not in old.columns:      # tables written before the multi-realization column
+            old["data_seed"] = 42
+        key = ["dim", "data_seed", "method", "seed"]
         reran = set(map(tuple, per_run[key].drop_duplicates().itertuples(index=False)))
         keep = old[[t not in reran for t in old[key].itertuples(index=False, name=None)]]
         per_run = pd.concat([keep, per_run], ignore_index=True)

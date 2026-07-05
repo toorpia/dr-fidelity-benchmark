@@ -288,7 +288,6 @@ def dimension_curve(agg_dims, methods, out_dir,
 
     fig, axes = plt.subplots(1, len(panels), figsize=(6.5 * len(panels), 5), sharex=True,
                              squeeze=False)
-    dims_sorted = sorted(agg_dims["dim"].unique())
     for ax, (metric, title) in zip(axes.flat, panels):
         any_line = False
         for method in methods:
@@ -300,11 +299,11 @@ def dimension_curve(agg_dims, methods, out_dir,
             x = r["dim"].to_numpy()
             ax.plot(x, r["median"], marker="o", label=method, color=_color(method))
             ax.fill_between(x, r["ci_lo"], r["ci_hi"], alpha=0.15, color=_color(method))
+        # proper log10 axis: decade majors (10, 100, 1000) + minor ticks; the measured dims are
+        # marked by the data points themselves
         ax.set_xscale("log")
-        ax.set_xticks(dims_sorted)
         ax.xaxis.set_major_formatter(ScalarFormatter())
-        ax.minorticks_off()
-        ax.set_xlabel("total dimensionality D  (3 signal + D-3 noise dims)")
+        ax.set_xlabel("total dimensionality D, log10 axis  (3 signal + D-3 noise dims)")
         ax.set_ylabel(title, fontsize=10)
         ax.set_ylim(-0.05, 1.05)
         if metric.startswith("knn_acc"):
