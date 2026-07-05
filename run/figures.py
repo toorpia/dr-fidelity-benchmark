@@ -239,6 +239,88 @@ def dynamic_range_curve(agg_sweep, methods, out_dir):
     return out
 
 
+def dims_grid(grid, labels, methods, dims, out_dir, fname="dims_grid.png"):
+    """Notebook-style grid: rows = methods, cols = total dimensionality, colored by cluster label.
+
+    ``grid`` is ``{method: {dim: (n, 2) embedding}}``; missing cells stay blank. Panels are forced
+    square (equal half-range on both axes, centered) exactly like the source notebook, so cluster
+    collapse reads as shape -- not as an axis-scaling artifact.
+    """
+    # CVD-safe cluster colors (Okabe-Ito family; validated: worst adjacent protan dE 37, all
+    # >= 3:1 contrast) -- the notebook's raw r/g/b has protan dE 10 between red and green, and
+    # cluster MIXING is exactly what this figure must show
+    _cluster_colors = np.array(["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#56B4E9", "#E69F00"])
+    point_colors = _cluster_colors[np.asarray(labels, dtype=int) % 6]
+    nrow, ncol = len(methods), len(dims)
+    fig, axes = plt.subplots(nrow, ncol, figsize=(2.6 * ncol, 2.6 * nrow), squeeze=False)
+    for ax in axes.flat:
+        ax.axis("off")
+    for i, method in enumerate(methods):
+        for j, dim in enumerate(dims):
+            Y = grid.get(method, {}).get(dim)
+            if Y is None:
+                continue
+            ax = axes[i][j]; ax.axis("on")
+            ax.scatter(Y[:, 0], Y[:, 1], c=point_colors, s=8, alpha=0.7)
+            x_center, y_center = np.mean(ax.get_xlim()), np.mean(ax.get_ylim())
+            half = max(np.ptp(ax.get_xlim()), np.ptp(ax.get_ylim())) / 2.0
+            ax.set_xlim(x_center - half, x_center + half)
+            ax.set_ylim(y_center - half, y_center + half)
+            ax.set_xticks([]); ax.set_yticks([])
+            ax.set_title(f"{method} - {dim}D", fontsize=9)
+    fig.suptitle("noise-dims sweep: 3 tight clusters in 3 signal dims + (D-3) noise dims",
+                 fontsize=12)
+    out = Path(out_dir) / fname
+    fig.tight_layout(rect=(0, 0, 1, 0.97)); fig.savefig(out, dpi=130); plt.close(fig)
+    return out
+
+
+def dimension_curve(agg_dims, methods, out_dir,
+                    panels=(("full_shepard",
+                             "global Shepard ρ — vs ambient (the features as given)"),
+                            ("knn_acc_k10", "2-D kNN label accuracy (k=10)"))):
+    """Fidelity vs total dimensionality, one CI-ribboned line per method.
+
+    ``agg_dims`` columns: method, dim, metric, median, ci_lo, ci_hi. kNN-accuracy panels get a dashed
+    chance line at 1/3 (three balanced clusters).
+    """
+    from matplotlib.ticker import ScalarFormatter
+
+    fig, axes = plt.subplots(1, len(panels), figsize=(6.5 * len(panels), 5), sharex=True,
+                             squeeze=False)
+    dims_sorted = sorted(agg_dims["dim"].unique())
+    for ax, (metric, title) in zip(axes.flat, panels):
+        any_line = False
+        for method in methods:
+            r = agg_dims[(agg_dims.method == method) & (agg_dims.metric == metric)]
+            r = r.sort_values("dim")
+            if not len(r):
+                continue
+            any_line = True
+            x = r["dim"].to_numpy()
+            ax.plot(x, r["median"], marker="o", label=method, color=_color(method))
+            ax.fill_between(x, r["ci_lo"], r["ci_hi"], alpha=0.15, color=_color(method))
+        ax.set_xscale("log")
+        ax.set_xticks(dims_sorted)
+        ax.xaxis.set_major_formatter(ScalarFormatter())
+        ax.minorticks_off()
+        ax.set_xlabel("total dimensionality D  (3 signal + D-3 noise dims)")
+        ax.set_ylabel(title, fontsize=10)
+        ax.set_ylim(-0.05, 1.05)
+        if metric.startswith("knn_acc"):
+            ax.axhline(1 / 3, color="#888", lw=1.0, ls="--")
+            ax.annotate("chance = 1/3", xy=(0.02, 1 / 3), xycoords=("axes fraction", "data"),
+                        fontsize=8, color="#888", va="bottom")
+        ax.grid(alpha=0.3, which="both")
+        if any_line:
+            ax.legend(fontsize=8, ncol=2)
+    fig.suptitle("Curse of dimensionality (noise-dims): fidelity vs total dimensionality",
+                 fontsize=12)
+    out = Path(out_dir) / "dimension_curve.png"
+    fig.tight_layout(); fig.savefig(out, dpi=130); plt.close(fig)
+    return out
+
+
 def population_gallery(embeddings, labels, population, dataset, snr, out_dir, fname=None):
     """2-D embedding per method for the imbalanced two-population dataset.
 

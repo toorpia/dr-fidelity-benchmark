@@ -23,7 +23,8 @@ ground truth instead of by eye.
 
 We compare **seven** methods — PCA, Isomap, t-SNE, UMAP, PyMDE, PCC, and the closed-source
 **toorPIA** — on **five** synthetic datasets (density, clusters, transition, outliers, imbalanced
-populations).
+populations). All five share a single, deliberately noise-friendly noise model; see *Noise
+regimes* below for a direct stress test of the opposite regime.
 
 **Bottom line:** no single number tells the whole story, because these methods optimize different
 things. **toorPIA preserves both near and global distance structure best overall** — it tops the
@@ -123,6 +124,12 @@ stays high — and t-SNE / UMAP never render the two-population separation at al
   cross-population 0.316 → 0.497 — the separation reading actually strengthens as the imbalance
   grows), with the trade-off growing in the same direction (population over-compression
   2.2× → 3.5× as the fraction shrinks).
+- **Dimension sweep (noise-dims supplement)** — with 3 signal columns plus D−3 pure-noise columns
+  (effective SNR = 3/(D−3), zero signal redundancy — the opposite regime of the five datasets),
+  every method loses the three true clusters between D=40 and D=200 (kNN label accuracy falls to
+  chance ≈1/3); **toorPIA alone keeps them visible through D=768** (accuracy 0.95 at effective
+  SNR ≈0.004). PyMDE at D≥100 draws crisp but fully label-mixed clumps — plausible-looking false
+  structure. See *Noise regimes* below and `figures/noise_dims/`.
 - **Why a new local metric?** recall@k is structurally unfair to distance-preserving methods, so the
   primary near-neighbor score here is the **fixed-radius near-band Shepard ρ (p=5)**. See `REPORT.html`
   for the full tables and the two figure-backed explanations (why full ρ hides local structure, and
@@ -166,7 +173,8 @@ stays high — and t-SNE / UMAP never render the two-population separation at al
 - **Want to reproduce** → follow *Quick start* below.
 - **Want the methodology in depth** → *Synthetic datasets* and *Metrics* below.
 - **Optional analyses** → `run/sweep.py` (dynamic-range curve and outlier-factor curve),
-  `run/robustness.py` (noise), `run/refigure.py` (rebuild figures without re-running methods).
+  `run/robustness.py` (noise), `run/dimsweep.py` (noise-dims dimension sweep — see *Noise
+  regimes*), `run/refigure.py` (rebuild figures without re-running methods).
 
 The central methodological contribution is **how local fidelity is measured**. The standard local
 metric (recall@k / kNN agreement) is biased toward neighbor-preserving methods (UMAP / t-SNE) and
@@ -210,7 +218,7 @@ designed so that its claims do not rest on the maintainers' judgment:
 pip install -r requirements.txt
 # Smoke test (~1 min): two runs produce identical metrics
 python run/benchmark.py --n 300 --dim 50 --seeds 3 --snr inf --out /tmp/dr_smoke --figdir /tmp/dr_smoke/figs
-# Full benchmark (all four datasets, all methods, R=3, D=768, N=1000; SNR=1)
+# Full benchmark (all five datasets, all methods, R=3, D=768, N=1000; SNR=1)
 python run/benchmark.py --dataset all --methods all --seeds 3 --dim 768 --n 1000 --snr 1
 # Or a single dataset — results MERGE into results/ (only the re-run dataset+SNR rows are replaced)
 python run/benchmark.py --dataset outliers --methods all --seeds 3 --dim 768 --n 1000 --snr 1
@@ -218,6 +226,8 @@ python run/benchmark.py --dataset outliers --methods all --seeds 3 --dim 768 --n
 python run/sweep.py --dynamic-range 2 5 10 20 50 --methods all --seeds 3
 python run/sweep.py --sweep outlier_factor --outlier-factor 1.5 2 3 5 8 --methods all --seeds 3
 python run/sweep.py --sweep minority_frac --minority-frac 0.5 0.25 0.1 0.05 --methods all --seeds 3
+# Noise-dims dimension sweep (curse-of-dimensionality supplement; see "Noise regimes")
+python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all --seeds 3 --n 500
 pytest tests/ -q
 ```
 
@@ -239,10 +249,10 @@ methods reproduce both near and global structure (top-right is best).
 
 | path | contents |
 |---|---|
-| `synth/` | synthetic generators (true geometry / true distances known) + SNR noise |
+| `synth/` | synthetic generators (true geometry / true distances known) + SNR noise; `noise_dims.py` (unregistered noise-dims probe) |
 | `methods/` | uniform `embed(X, seed, device, context) -> Y(N×2)` wrappers + registry |
-| `metrics/` | exact fidelity metrics on all pairwise distances |
-| `run/` | driver (`benchmark.py`), aggregation, figures, `make_report.py` (REPORT.html); optional `sweep.py` / `robustness.py` / `refigure.py` |
+| `metrics/` | exact fidelity metrics on all pairwise distances; `label_separation.py` (noise-dims readouts) |
+| `run/` | driver (`benchmark.py`), aggregation, figures, `make_report.py` (REPORT.html); optional `sweep.py` / `robustness.py` / `dimsweep.py` / `refigure.py` |
 | `figures/`, `results/` | generated plots and metric tables |
 | `external_embeddings/` | committed toorPIA coordinate caches + the external-injection path |
 | `tests/` | small-N sanity tests |
@@ -259,6 +269,9 @@ generating distances) and **vs-ambient** (noisy distances the method actually sa
 and seed are CLI-configurable. The code supports an SNR sweep (`--snr inf 4 1`), but the canonical
 report uses **SNR=1**: with D=768 the high-dimensional structure is most discriminative under noise
 (at SNR=∞ even simple linear methods look good), so a single informative noise level is reported.
+This design is deliberately **redundancy-rich**: the orthonormal projection spreads each latent
+coordinate over all D columns, so isotropic noise self-averages and no curse of dimensionality
+operates. See *Noise regimes* below for the direct test of the opposite, redundancy-free regime.
 
 1. **Non-uniform density** (`synth/density.py`) — a uniform region + a tight Gaussian core + a sparse
    spherical shell, with deliberately different densities. Ground-truth distance = Euclidean in the
@@ -350,6 +363,61 @@ report uses **SNR=1**: with D=768 the high-dimensional structure is most discrim
    to real data analysis is severely limited. The imbalance is exactly what makes the second
    question hard, and the dataset connects continuously to the outliers dataset (a small minority
    *without* internal structure is the anomaly case).
+
+## Noise regimes: what the isotropic design assumes — and a direct stress test
+
+### Why the five datasets are curse-of-dimensionality-free by design
+
+The five datasets share one deliberately noise-friendly design. The random orthonormal projection
+gives every latent factor dense, balanced loadings across **all** D=768 ambient columns, so the
+ambient data is in effect **768 noisy re-measurements of the same ~10 latent quantities**. In every
+pairwise distance the signal contributions add coherently while the isotropic noise contributions
+cancel (the signal-noise cross terms average to ≈0, and the pure-noise term is a near-constant
+offset for every pair, fluctuating only ~1/√D). The driver also anchors the noise **power** to the
+signal power (`SNR`), independent of D. Two consequences: the ambient dimension is **nominal** (the
+between/within distance contrast of `clusters` at SNR=1 is ≈1.46 at D=8 and still ≈1.46 at D=768),
+and **no curse of dimensionality operates — by construction**. This is the noise-*friendly*
+extreme: real feature tables also contain uninformative columns and correlated noise components
+that do **not** self-average.
+
+### Supplement: the noise-dims dimension sweep (`run/dimsweep.py`)
+
+The **noise-dims sweep** (runner `run/dimsweep.py`; results files `dimsweep_*`) probes the
+opposite, redundancy-free extreme directly. *Design* (`synth/noise_dims.py`, ported from a teaching
+notebook): three tight Gaussian clusters live in **3 signal columns** (`make_blobs`, std 0.005,
+centers at the unit vectors) and every additional column is pure unit-variance noise; all columns
+are then z-scored. *Mechanism:* each added dimension adds unit noise power at fixed signal power,
+so the effective SNR is **3/(D−3)** — from ≈1 at D=6 to ≈0.004 at D=768; total dimensionality is
+the noise knob. *Contract honesty:* unlike the five registry datasets this generator is
+deliberately **not isometric** (the ground truth is the 3 signal columns, not the ambient
+distances) and is deliberately **not in the synth registry** — it is a probe, not a sixth dataset.
+*Readouts:* leave-one-out **kNN label accuracy** (k=10, chance 1/3) and 2-D silhouette
+(`metrics/label_separation.py`) answer the operational question "are the three true clusters still
+visible in the map?"; distance fidelity is reported per the benchmark's primary axis (**vs-ambient**
+band Shepard ρ) — note the ambient distances themselves become noise-dominated as D grows, so every
+method's full ρ declines *by construction* and must not be read as method failure. *Sweep spec:*
+D = 6…768 (the same ambient dimension as the main benchmark, now with zero redundancy), n=500,
+R=3 seeds, all seven methods.
+
+**Result (D = 6–768, R = 3, n = 500).** Every method holds the three clusters to D≈20–40
+(kNN accuracy ≥0.88, except PyMDE which collapses first at D=40: 0.48). The collapse then proceeds
+in order: PCC and Isomap by D=80 (0.43 / 0.65), PCA / t-SNE / UMAP fade between D=80 and D=200
+(0.66–0.84 → 0.42–0.45), and from D=200 every method except toorPIA sits near chance (0.27–0.45
+vs chance 0.33). **toorPIA holds accuracy 1.00 through D=100, 0.99 at D=200–400, and 0.95 at
+D=768** — at an effective SNR of ≈0.004. On the vs-ambient axis the ordering inverts: PCC tracks
+the noise-dominated ambient distances best (full ρ ≈0.52 at D=768 vs toorPIA ≈0.41) while its map
+shows no clusters — the two readouts together separate "faithful to the features as given" from
+"true structure still visible", which is exactly the regime dependence this supplement documents.
+The PyMDE panels are a useful caution: at D≥100 it draws crisp, well-separated clumps whose
+label composition is fully mixed — plausible-looking structure that is entirely false.
+Figures: `figures/noise_dims/` (`dimension_curve.png`, `dims_grid.png`); tables:
+`results/dimsweep_{per_run,aggregated}.csv`; rendered in `REPORT.html#noise-dims`. Reproduce:
+`python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all --seeds 3 --n 500`
+(n=500 keeps the committed toorPIA cache keys valid).
+
+The idealized datasets and the noise-dims sweep bracket reality from the two extremes (maximal
+signal redundancy vs none); realistic middle-ground variants (sparse loadings, correlated noise)
+are under construction and will be documented here once finalized.
 
 ## DR methods
 
@@ -648,6 +716,12 @@ out-of-sample transform).
   (reference-point sampling, `np.random.choice`) AND torch (init), while PyMDE draws from torch.
 - The driver sets `torch.set_num_threads(1)` and forces CPU (`CUDA_VISIBLE_DEVICES=""`) by default to
   avoid floating-point non-determinism from thread/GPU reduction order. Device is configurable.
+- **Order-independence of torch-based methods**: UMAP's first execution (numba threading-layer
+  init) silently resets the process's torch thread count, which would change the float reduction
+  order — and hence the optimization trajectory — of any PyMDE/PCC run that follows it in the same
+  process. The PyMDE and PCC wrappers therefore **re-pin `torch.set_num_threads(1)` on every
+  call**, so their results do not depend on which methods ran before them
+  (`tests/test_thread_pinning.py` is the regression net).
 - Data generation and noise realizations are seeded deterministically per (dataset, SNR). **Re-running
   with the same arguments reproduces identical numbers** (verified in `tests/` and by diffing two
   runs of `results/metrics_per_run.csv`).
@@ -703,4 +777,7 @@ It is **not** a claim about any method's superiority on real downstream tasks. R
 fidelity profiles and their dispersion; rankings respect CI overlap. This applies equally to the
 outliers dataset and its pair/addplot readouts: they characterize whether a synthetic anomaly
 structure survives the 2-D map, not any method's usefulness for real-world outlier *detection*
-(which is a downstream task with its own tooling).
+(which is a downstream task with its own tooling). Note also that all five-dataset results are
+obtained under the redundancy-rich isotropic noise model — the noise-*friendly* extreme (see
+*Noise regimes*); the noise-dims sweep shows the rankings need not transfer to
+sparse/irrelevant-feature regimes, and none of the rankings should be extrapolated there.

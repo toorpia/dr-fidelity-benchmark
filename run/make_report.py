@@ -370,7 +370,84 @@ def figure_block(dataset, snr, embed):
     return f"<div class='figgrid'>{items}</div>"
 
 
-def addplot_section() -> str:
+def noise_dims_section(embed: bool) -> str:
+    """Supplement: the noise-dims dimension sweep — a direct stress test of noise tolerance in
+    the redundancy-free regime (the opposite extreme of the five datasets' isotropic design).
+    Rendered only when the sweep's output exists."""
+    p = ROOT / "results" / "dimsweep_aggregated.csv"
+    if not p.exists():
+        return ""
+    agg = pd.read_csv(p)
+    dims_avail = sorted(int(d) for d in agg["dim"].unique())
+    landmark = [d for d in (6, 40, 80, 200, 768) if d in dims_avail] or dims_avail[:5]
+    knn_keys = sorted({str(m) for m in agg["metric"].unique() if str(m).startswith("knn_acc_k")})
+    groups = ([(knn_keys[0], "2-D kNN label accuracy (chance = 1/3)")] if knn_keys else []) + \
+        [("full_shepard", "global Shepard ρ — vs ambient (the features as given)")]
+
+    def cell(m, dim, metric):
+        r = agg[(agg.method == m) & (agg.dim == dim) & (agg.metric == metric)]
+        if not len(r):
+            return "<td>—</td>"
+        med, lo, hi = (float(r["median"].iloc[0]), float(r["ci_lo"].iloc[0]),
+                       float(r["ci_hi"].iloc[0]))
+        ci = ("" if abs(hi - lo) < 5e-4
+              else f"<span class='ci'> [{lo:.3f}, {hi:.3f}]</span>")
+        return f"<td>{med:.3f}{ci}</td>"
+
+    grp = "".join(f"<th class='grp grp-primary' colspan='{len(landmark)}'>{html.escape(t)}</th>"
+                  for _, t in groups)
+    sub = "".join("".join(f"<th class='sub-primary'>D={d}</th>" for d in landmark) for _ in groups)
+    body = []
+    for m in METHOD_ORDER:
+        if not len(agg[agg.method == m]):
+            continue
+        tds = "".join(cell(m, d, k) for k, _ in groups for d in landmark)
+        body.append(f"<tr><th class='method'>{html.escape(m)}</th>{tds}</tr>")
+    table = (f"<table class='rank'><thead>"
+             f"<tr><th class='method' rowspan='2'>method</th>{grp}</tr>"
+             f"<tr>{sub}</tr></thead><tbody>{''.join(body)}</tbody></table>")
+
+    return (
+        "<h2 id='noise-dims'>Supplement — noise-dims dimension sweep (when dimensionality itself "
+        "is the noise)</h2>"
+        "<p class='blurb'><b>Two noise regimes.</b> The five datasets above share one deliberately "
+        "noise-friendly design: the random orthonormal projection spreads every latent factor "
+        "across all D=768 ambient columns (D-fold redundancy), so the driver's isotropic noise "
+        "self-averages in every pairwise distance and the ambient dimension is nominal — no curse "
+        "of dimensionality operates, <i>by construction</i>. This supplement probes the opposite, "
+        "redundancy-free extreme: 3 tight clusters live in 3 signal columns and every additional "
+        "column is pure unit-variance noise (per-column standardized), so each added dimension "
+        "adds noise power at fixed signal power — the effective SNR is 3/(D−3) and falls toward 0 "
+        "as D grows. The sweep deliberately runs to <b>D=768 — the main benchmark's ambient "
+        "dimension</b>: at the very same nominal D where all seven methods render the five "
+        "datasets cleanly, the redundancy-free regime (effective SNR ≈ 0.004) drives six of seven "
+        "to chance — the ambient dimension itself was never the difficulty; the noise geometry "
+        "is. The probe is deliberately NOT a sixth registry dataset: its ground truth "
+        "(the 3 signal columns) is intentionally not isometric to the ambient features. Distance "
+        "fidelity is scored <b>vs ambient</b> — the features as given, this benchmark's primary "
+        "axis — and note the ambient distances themselves become noise-dominated as D grows, so "
+        "every method's full ρ declines by construction; the <b>kNN label-accuracy</b> column is "
+        "the direct readout of whether the true clusters remain visible in the 2-D map. Read the "
+        "results as <b>regime dependence</b> — rankings from the redundancy-rich datasets above "
+        "need not transfer to sparse/irrelevant-feature regimes, and vice versa.</p>"
+        + table
+        + figure_one("noise_dims", "dimension_curve.png",
+                     "Fidelity vs total dimensionality D (log axis): global Shepard ρ vs the "
+                     "3-column truth, and 2-D kNN label accuracy (chance = 1/3, dashed); median "
+                     "+ bootstrap 95% CI ribbon per method.", embed)
+        + figure_one("noise_dims", "dims_grid.png",
+                     "2-D embeddings at landmark dimensions, 3 true clusters colored — watch "
+                     "where each method's clusters dissolve as noise dimensions are added.", embed)
+        + "<p class='note'><b>Honest notes.</b> (1) n=500 (vs the main benchmark's n=1000): the "
+        "phenomenon is dimension-driven, and n=500 keeps the committed toorPIA cache keys "
+        "(<code>n500_dim{D}</code>) stable. (2) Bracketed ranges are bootstrap 95% CIs over seeds; "
+        "deterministic methods show a point value. (3) kNN label accuracy is leave-one-out in the "
+        "2-D embedding (k=10; 3 balanced clusters, chance = 1/3). (4) Reproduce: "
+        "<code>python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all "
+        "--seeds 3 --n 500</code>.</p>")
+
+
+def addplot_section(embed: bool) -> str:
     """Supplement: addplot / out-of-sample test on an anomaly-free basemap. Rendered only when
     the experiment's output exists. Two operational questions: does a never-seen anomaly land
     OUTSIDE the normal region (detection), and does its DIRECTION point back to its source
@@ -433,7 +510,7 @@ def addplot_section() -> str:
         "monitoring that is itself the finding: adding data means re-fitting, and a re-fit "
         "re-arranges the map.</p>"
         + table +
-        "<figure class='guidefig'>" + img("outliers", "basemap_addplot_gallery.png", False) +
+        "<figure class='guidefig'>" + img("outliers", "basemap_addplot_gallery.png", embed) +
         "<figcaption>Anomaly-free basemap (normal clusters, faint colors) + added points "
         "(▲ = cluster-anchored anomalies colored by SOURCE cluster, · = added normal controls). "
         "Faithful = each ▲ outside the normal region AND in its own cluster's direction, pair "
@@ -495,7 +572,7 @@ def build(embed: bool) -> str:
     nav = ("<nav><b>REPORT</b> &nbsp; <a href='#guide'>reading guide</a> &nbsp; "
            + " ".join(f"<a href='#{d}'>{DATASET_NAV.get(d, d)}</a>" for d in DATASETS)
            + " <a href='#stability'>stability</a> <a href='#notes'>notes</a>"
-           + " <a href='#addplot'>addplot</a></nav>")
+           + " <a href='#addplot'>addplot</a> <a href='#noise-dims'>noise-dims</a></nav>")
 
     parts = [f"<!doctype html><html lang='en'><head><meta charset='utf-8'>",
              "<meta name='viewport' content='width=device-width,initial-scale=1'>",
@@ -703,11 +780,15 @@ def build(embed: bool) -> str:
         "synthetic known-structure data; it is not a claim about downstream-task superiority. When "
         "CIs overlap, no strict winner is asserted.</p>")
 
-    parts.append(addplot_section())
+    parts.append(addplot_section(embed))
+    parts.append(noise_dims_section(embed))
 
     parts.append(
         "<footer>Generated by <code>run/make_report.py</code> from "
-        "<code>results/metrics_aggregated.csv</code> + <code>results/stability.csv</code>. "
+        "<code>results/metrics_aggregated.csv</code> + <code>results/stability.csv</code> "
+        "(+ <code>results/dimsweep_aggregated.csv</code> for the noise-dims supplement; reproduce "
+        "it with <code>python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all "
+        "--seeds 3 --n 500</code>). "
         "This page shows <b>SNR=1</b> (realistic additive noise). Reproduce the full SNR sweep with "
         "<code>python run/benchmark.py --dataset all --methods all --seeds 3 --dim 768 --n 1000 "
         "--snr inf 4 1</code> (or just the reported level with <code>--snr 1</code>), then rebuild this "
