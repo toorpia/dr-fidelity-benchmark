@@ -19,6 +19,10 @@ def embed_pymde(X, seed, device="cpu", context=None, max_iter=300):
     import pymde
     import torch
 
+    # re-pin every call: a prior UMAP run (numba threading-layer init) silently resets the
+    # process's torch thread count (1 -> n_cores), changing float reduction order and hence the
+    # optimization trajectory -- PyMDE results must not depend on which methods ran before it
+    torch.set_num_threads(1)
     torch.manual_seed(int(seed))
     data = torch.as_tensor(X, dtype=torch.float32)
     mde = pymde.preserve_distances(data, embedding_dim=2, constraint=pymde.Standardized(),

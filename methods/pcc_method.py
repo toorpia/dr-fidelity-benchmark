@@ -29,6 +29,9 @@ def embed_pcc(X, seed, device="cpu", context=None, num_epochs=500):
     import torch
     from pcc import PCC
 
+    # re-pin every call: a prior UMAP run (numba threading-layer init) silently resets the
+    # process's torch thread count, changing float reduction order (see pymde_method.py)
+    torch.set_num_threads(1)
     np.random.seed(int(seed))
     torch.manual_seed(int(seed))
     n = len(X)
