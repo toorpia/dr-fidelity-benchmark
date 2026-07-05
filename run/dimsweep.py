@@ -1,16 +1,19 @@
 """Curse-of-dimensionality sweep on the ``noise_dims`` dataset (3 tight clusters + noise dims).
 
 For each total dimensionality D, generate the noise-dims dataset (3 tight clusters in 3 standardized
-signal columns + D-3 standard-normal noise columns), embed every method over R seeds, and record
-distance fidelity vs the 3-D truth plus 2-D label-separation scores (kNN accuracy / silhouette).
-Quantified replication of the notebook experiment ``01_hi_dimensional_data_anlaysis.ipynb``.
+signal columns + D-3 standard-normal noise columns), embed every method over R seeds, and record the
+2-D label-separation scores (kNN accuracy / silhouette) that headline the supplement -- the full
+distance-band metric set (vs truth and vs ambient) is also computed into the per-run CSV, but is
+deliberately not headlined: a global rho is only meaningful paired with its near band, and neither
+reads cleanly against this probe's noise-dominated ambient. Quantified replication of the notebook
+experiment ``01_hi_dimensional_data_anlaysis.ipynb``.
 
     python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all --seeds 3 --n 1000
     # extreme-D extension: 5 noise realizations x 3 method seeds (realization-sensitive regime)
     python run/dimsweep.py --dims 1500 2000 --methods toorPIA --seeds 3 --n 1000 --data-seed 42 0 1 2 3
 
-Results MERGE into an existing ``dimsweep_per_run.csv`` by (dim, method, seed), so partial runs
-(like the toorPIA-only extension above) extend the sweep without clobbering it. Unlike
+Results MERGE into an existing ``dimsweep_per_run.csv`` by (dim, data_seed, method, seed), so
+partial runs (like the toorPIA-only extension above) extend the sweep without clobbering it. Unlike
 ``run/sweep.py``, a ``SkipMethod`` here skips only the current dim (no permanent blacklist):
 high-D toorPIA API calls are the likeliest to fail transiently, and every successful embedding is
 cached under ``external_embeddings/noise_dims/`` so a re-run is cheap.
