@@ -23,18 +23,24 @@ ground truth instead of by eye.
 
 We compare **seven** methods — PCA, Isomap, t-SNE, UMAP, PyMDE, PCC, and the closed-source
 **toorPIA** — on **five** synthetic datasets (density, clusters, transition, outliers, imbalanced
-populations). All five share a single, deliberately noise-friendly noise model; see *Noise
-regimes* below for a direct stress test of the opposite regime.
+populations) plus a **sixth, time-series dataset** (multi-series high-D random walks — open
+trajectories, no clusters). The five share a single, deliberately noise-friendly noise model; see
+*Noise regimes* below for a direct stress test of the opposite regime.
 
 **Bottom line:** no single number tells the whole story, because these methods optimize different
 things. **toorPIA preserves both near and global distance structure best overall** — it tops the
-composite (near + global) ranking on all three datasets and has the **highest global Shepard ρ on two
-of the three** (clusters and transition; PCC edges it out only on the density set). **PCC** posts a
-high global correlation but **crushes dense clusters almost to points**; **t-SNE / UMAP** lead the
-conventional neighbor metrics (and the near band) but distort global, large-scale distances. On the
+composite (near + global) ranking on two of the three core datasets (density, clusters) and has the
+**highest global Shepard ρ on two of the three** (clusters and transition; PCC edges it out only on
+the density set); on transition the composite goes to **PCC** (toorPIA 3rd — its first-mode near ρ
+trails t-SNE / PCC / UMAP / PCA there despite the best global ρ; the map gallery, however, shows
+toorPIA is the only method that reproduces the dataset's defining geometry — seven dense states AND
+their closed ring connectivity — simultaneously; see the transition section). **PCC** posts a
+high global correlation but **crushes dense clusters almost to points**; **t-SNE** leads the
+first-mode near band on four of the five datasets (toorPIA takes density), and **t-SNE / UMAP** lead
+the conventional neighbor metrics — but both distort global, large-scale distances. On the
 fourth dataset (paired same-kind anomalies, off-subspace), the anomaly-pair Shepard ρ — the
 standard ρ restricted to the outlier-involving pairs, scored into the ranking — puts **toorPIA
-clearly first (0.254, near-identical across seeds)** with t-SNE / UMAP / PyMDE at the bottom
+clearly first (0.615, deterministic)** with t-SNE / UMAP / PyMDE at the bottom
 (their anomalies sit at or inside bulk clusters, or same-kind pairs are fused/torn); in the
 out-of-sample (addplot) test — monitoring on an anomaly-free basemap — **toorPIA is the only
 method that plots a never-seen anomaly outside the normal region at all, and its direction points
@@ -42,36 +48,52 @@ back to the anomaly's source cluster**; t-SNE / PyMDE / PCC cannot perform the a
 at all. On the fifth dataset (imbalanced two populations with internal structure), only
 **toorPIA keeps a 5-% minority population both recognizable as a separate group and internally
 trustworthy**; PCA and PCC lose the minority's internal structure — *silently*, their global ρ
-stays high — and t-SNE / UMAP never render the two-population separation at all.
+stays high — and t-SNE / UMAP never render the two-population separation at all. On the sixth,
+time-series dataset (multi-series random walks, whose true shape is a star of jagged, mutually
+orthogonal spokes radiating from a shared origin), **toorPIA leads every trajectory readout**
+(full ρ 0.924, within-series 0.970, cross-series 0.897) while t-SNE / UMAP keep only the
+step-level time order and cut the star into disconnected smooth ribbons (cross-series ρ
+0.366 / 0.477).
 
 ## Results at a glance
 
 - **No method wins everything** — the ranking flips depending on whether you care about *near*
   (within-cluster) or *global* (overall layout) structure.
-- **toorPIA** — best all-rounder on distance fidelity: **tops the composite (near + global) ranking on all three datasets**,
-  has the **highest global Shepard ρ on two of the three** (clusters and transition; 2nd on density),
-  preserves the within-cluster scale (over-compression ≈0.4–0.6×), and shows ≈zero run-to-run wobble.
+- **toorPIA** — best all-rounder on distance fidelity: **tops the composite (near + global) ranking
+  on density and clusters (and on outliers and populations)**, has the **highest global Shepard ρ on
+  two of the three core datasets** (clusters and transition; 2nd on density) and the best first-mode
+  near ρ on density; **on transition it drops to 3rd in the composite** (PCC 1st, t-SNE 2nd — its
+  first-mode near ρ is only 6th there), while the transition map gallery shows it is the only
+  method rendering both of that dataset's defining features at once — the seven dense states and
+  their closed ring connectivity (Isomap draws the ring but smears the clusters; t-SNE/UMAP keep
+  the clusters but tear the loop; PCC fuses the cycle through a central hub).
+  Keeps the tightest cluster's scale closest to the truth overall (0.4–0.8× across the five
+  datasets, on the inflation side — legible but exaggerated on density and transition), and is
+  deterministic (the embedding endpoint
+  exposes no seed; same input → same map).
 - **PCC** — a **high** global Shepard ρ (**highest only on density**; 3rd on clusters, 2nd on
-  transition) **but it crushes dense clusters** (within-cluster over-compression ≈9–50×). The high
-  global ρ *hides* this collapse — it shows up only in the over-compression metric and the Shepard
-  density plots.
-- **t-SNE / UMAP** — lead the conventional recall@k / trustworthiness / continuity *and* the near band
-  (p5), but distort global, large-scale distances (low *full* Shepard ρ). Note recall@k is itself a
+  transition) **but it crushes dense clusters** (tightest-cluster over-compression ≈9× on clusters
+  and ≈93× on density). The high
+  global ρ *hides* this collapse — it shows up only in the tightest-cluster scale metric and the
+  Shepard density plots.
+- **t-SNE / UMAP** — lead the conventional recall@k / trustworthiness / continuity, and t-SNE leads
+  the first-mode near band on four of five datasets, but both distort global, large-scale distances
+  (low *full* Shepard ρ). Note recall@k is itself a
   **biased** local metric (see *Metrics*).
 - **PyMDE** — good scale preservation (best on the density set) and mid-pack global ρ, but weak on the
-  near band (p5).
+  first-mode near band.
 - **Outliers dataset (R=3, SNR=1)** — read the **Shepard density figure** (high-D vs 2-D pairwise
   distance) and the **star gallery** first; the quantitative anchor is the same standard statistic
   restricted to the pairs that matter here: the **anomaly-pair Shepard ρ** (`outlier ρ` — Spearman
   over exactly the pairs involving a ground-truth outlier), which feeds the composite ranking as a
   third 5..1 column so that **no local reading can outrank the baseline**: a method that plots its
   anomalies among other clusters, fuses same-kind pairs, or tears them apart scrambles precisely
-  these pairs. Result: **toorPIA 0.254 [0.253, 0.254]** — clearly first and near-identical across
-  seeds — with PCA 0.156, PCC 0.154 [0.114, 0.164], Isomap 0.153, then **t-SNE 0.083
+  these pairs. Result: **toorPIA 0.615** (deterministic) — clearly first, at ≈4× the runner-up —
+  with PCA 0.156, PCC 0.154 [0.114, 0.164], Isomap 0.153, then **t-SNE 0.083
   [0.047, 0.136]** and **UMAP 0.062 [−0.005, 0.111]** (their anomalies sit at or inside
   bulk clusters — visible in the gallery and as off-trend blocks in the Shepard density panel) and
   **PyMDE 0.033** last (same-kind pair torn to opposite ends, different kinds fused). toorPIA also
-  holds the highest global ρ (0.755) and the only clean monotone Shepard band; PCC's ρ 0.707
+  holds the highest global ρ (0.759) and the only clean monotone Shepard band; PCC's ρ 0.707
   coexists with visibly wrong anomaly blocks — few pairs, so the all-pair statistic barely moves,
   which is exactly why the restricted ρ is scored. (Descriptive, not scored: same-kind pair angles
   — toorPIA ≤ 10°, PCC ≈ 86°, PCA/Isomap/PyMDE ≥ 150°; t-SNE's ≈ 0° is a fusion artifact, one of
@@ -84,10 +106,10 @@ stays high — and t-SNE / UMAP never render the two-population separation at al
   shape of a fault: a known operating state plus a never-seen effect. Two questions in order:
   **detection** (does the anomaly land visibly outside the normal region?) and **attribution**
   (does its direction on the map point back to its source cluster?). The high-D features resolve
-  attribution 10/10, so a faithful map can too. Result (R=3, SNR=1): **only toorPIA answers both
-  — every anomaly lands far outside the normal region (5.2–6.4× the bulk radius, identical
-  across seeds) AND its direction points at the source cluster (attribution 10/10, angle to own
-  cluster 0.6°, pair angle 0.6°)**. For PCA / Isomap / UMAP the anomalies land **inside or at
+  attribution 10/10, so a faithful map can too. Result (SNR=1): **only toorPIA answers both
+  — every anomaly lands far outside the normal region (9.7× the bulk radius; deterministic) AND
+  its direction points at the source cluster (attribution 10/10, angle to own
+  cluster 1.0°, pair angle 1.7°)**. For PCA / Isomap / UMAP the anomalies land **inside or at
   the normal clusters** (median radius ratio 0.96–1.34, minima down to 0.26) — the anomaly is
   drawn as just another normal point of its source cluster, so the "attribution" (0.8–1.0)
   carries no alarm: detection silently fails. Added normal controls land correctly for every
@@ -99,15 +121,16 @@ stays high — and t-SNE / UMAP never render the two-population separation at al
   population from the map**, which needs two readings positive **at once**: the minority drawn as
   a recognizable separate group (cross-population ρ) AND a trustworthy internal structure
   (minority-internal ρ); failing either disqualifies the task. At 5%: **toorPIA is the only
-  method with both readings clearly positive** (minority-internal 0.275 / cross-population 0.497,
-  plus the best majority-internal 0.745 and the best full ρ 0.809, zero run-to-run wobble), at
-  the cost of the strongest population-level over-compression (3.5×: the group gap dominates and
-  the internal layouts are drawn relatively small — read that column together with
-  cross-population ρ). **PCA** places the minority correctly (cross ρ 0.683, the best) but its
+  method with both readings clearly positive** (minority-internal 0.211 / cross-population 0.654,
+  plus the best majority-internal 0.750 and the best full ρ 0.813; deterministic); its map draws
+  the two-population gap prominently, with the internal layouts correspondingly small relative to
+  it (visible in the gallery). **PCA** places the minority correctly (cross ρ 0.683, the best) but its
   internal structure is gone (minority-internal −0.025 — a correctly placed featureless blob).
-  **t-SNE / UMAP** are the mirror image: the best minority internals (0.658 / 0.451) but
-  cross-population ρ ≈ 0 — the minority's clusters are scattered among the majority's, so the
-  two-population structure is not rendered at all. **PCC** fails both readings (minority-internal
+  **t-SNE / UMAP** are the mirror image: the best minority internals by rank (0.658 / 0.451) but
+  cross-population ρ ≈ 0 — the minority's placement carries no distance information (t-SNE fuses
+  the five minority clusters into one tiny clump set apart;
+  UMAP scatters them as islands along the map edge), so the two-population geometry is not
+  rendered faithfully. **PCC** fails both readings (minority-internal
   0.023, cross-population 0.198) — and the failures are **silent**: PCC still posts the 2nd-best
   full ρ (**0.761**), so nothing in the global metric warns that the minority was destroyed (PCA
   likewise: full 0.608 vs minority-internal −0.025). This is consistent with PCC's
@@ -120,21 +143,43 @@ stays high — and t-SNE / UMAP never render the two-population separation at al
   0.821 → 0.423 → 0.262 → 0.198; minority-internal 0.539 → 0.492 → 0.246 → 0.023). **PCA**'s
   minority internals are already dead at 25% (0.029). **t-SNE / UMAP** keep the minority
   internals at every fraction but never render the separation (cross ≈ 0 throughout). **toorPIA**
-  keeps both readings clearly positive at every fraction (minority-internal 0.698 → 0.275;
-  cross-population 0.316 → 0.497 — the separation reading actually strengthens as the imbalance
-  grows), with the trade-off growing in the same direction (population over-compression
-  2.2× → 3.5× as the fraction shrinks).
-- **Dimension sweep (noise-dims supplement)** — with 3 signal columns plus D−3 pure-noise columns
-  (effective SNR = 3/(D−3), zero signal redundancy — the opposite regime of the five datasets),
-  every method loses the three true clusters between D=40 and D=200 (kNN label accuracy falls to
-  chance ≈1/3); **toorPIA alone keeps them visible through D=768** (accuracy 0.98 at effective
-  SNR ≈0.004), stays at 0.92 in a toorPIA-only D=1500 probe, and first breaks at D=2000 (pooled
+  keeps both readings clearly positive at every fraction (minority-internal 0.688 → 0.211;
+  cross-population 0.341 → 0.654 — the separation reading actually strengthens as the imbalance
+  grows).
+- **Time-series dataset (multi-series random walks; D=50, 6 series × 500 steps, clean)** — six
+  independent high-D random walks embedded together. The geometric ground truth (verified
+  empirically in the report's explainer figure) is a **star of six jagged spokes, mutually
+  orthogonal, radiating from the shared origin**: in high dimensions the walk escapes radially
+  (‖x_t‖ ∝ √t, never returning), successive steps are near-orthogonal (jagged at every step), and
+  different series are near-orthogonal to each other (never approaching — cross-series distances
+  are Pythagorean). Scored with the standard Spearman ρ split by (series, time) membership.
+  **toorPIA leads all three trajectory readouts** (within-series 0.970, cross-series 0.897, full
+  0.924; deterministic) and its map shows the full star with the saw-tooth jitter intact. **PCC**
+  draws a clean star but **smooths the saw-tooth away** (lowest step-structure ρ, 0.470 at
+  |Δt|≤20). **t-SNE / UMAP** are the mirror image: they lead the step-structure column
+  (0.951 / 0.885) but cut the walks into smooth disconnected ribbons with no shared origin —
+  cross-series ρ 0.366 / 0.477, the two lowest. **Isomap** collapses each walk to a nearly
+  straight ray. Reproduce: `python run/timeseries_probe.py`.
+- **Dimension sweep (noise-dims supplement)** — a two-stage probe of toorPIA under noise
+  dimensions, in the regime real tabular data presents: 3 signal columns
+  plus D−3 pure-noise columns
+  (effective SNR = 3/(D−3), zero signal redundancy — the opposite regime of the five datasets).
+  Every generic method loses the three true clusters between D=40 and D=200 (kNN label accuracy
+  falls to
+  chance ≈1/3). *Stage 1:* even toorPIA's raw-geometry `basemap_embedding` endpoint — the one the
+  main benchmark characterizes — outlasts them all (0.75 vs ≤0.51 at D=200, tracking the kNN
+  readable directly from the raw features; its own breaking regime starts at D≈250–400).
+  *Stage 2:* **toorPIA's default CSV-analysis endpoint `basemap_csvform` keeps the clusters
+  visible through D=768**
+  (accuracy 0.98 at effective
+  SNR ≈0.004, ≈3× the above-chance class signal of kNN on the raw 768-dim features themselves),
+  stays at 0.92 in a csvform-only D=1500 probe, and first breaks at D=2000 (pooled
   median 0.74 over 5 noise realizations, per-realization 0.58–0.88 — realization-sensitive, still
   above chance in every draw).
   PyMDE from D≈40 draws crisp but fully label-mixed clumps — plausible-looking false
   structure. See *Noise regimes* below and `figures/noise_dims/`.
 - **Why a new local metric?** recall@k is structurally unfair to distance-preserving methods, so the
-  primary near-neighbor score here is the **fixed-radius near-band Shepard ρ (p=5)**. See `REPORT.html`
+  primary near-neighbor score here is the **fixed-radius first-mode near-band Shepard ρ**. See `REPORT.html`
   for the full tables and the two figure-backed explanations (why full ρ hides local structure, and
   why recall@k is biased).
 
@@ -148,8 +193,11 @@ stays high — and t-SNE / UMAP never render the two-population separation at al
   the method actually saw.
 - **Shepard ρ** — Spearman rank correlation between high-D and 2-D pairwise distances (1 = perfect
   distance ordering).
-- **Distance band (p)** — the pairs whose high-D distance is in the lowest *p* % of all pairs.
-  **p=5** = near-neighbor band; **p=100 (full)** = all pairs = the classic global number.
+- **Distance band (p)** — the pairs whose high-D distance is in the lowest *p* % of all pairs;
+  **p=100 (full)** = all pairs = the classic global number. The headline **near band** is
+  structure-adaptive: all pairs inside the FIRST MODE of the distance profile (up to its density
+  valley; p14–p20 on these datasets — on the clustered ones exactly the true within-cluster pair
+  fraction).
 - **Stress** — value-based distance error (lower = better); complements the rank-based ρ by catching
   distorted distance *values*.
 - **Over-compression ×** — how much a method shrinks the within-cluster scale vs the truth.
@@ -175,8 +223,8 @@ stays high — and t-SNE / UMAP never render the two-population separation at al
   is stale); it has the ranking tables, figures, and a reading guide.
 - **Want to reproduce** → follow *Quick start* below.
 - **Want the methodology in depth** → *Synthetic datasets* and *Metrics* below.
-- **Optional analyses** → `run/sweep.py` (dynamic-range curve and outlier-factor curve),
-  `run/robustness.py` (noise), `run/dimsweep.py` (noise-dims dimension sweep — see *Noise
+- **Optional analyses** → `run/sweep.py` (outlier-factor and minority-fraction curves),
+  `run/dimsweep.py` (noise-dims dimension sweep — see *Noise
   regimes*), `run/refigure.py` (rebuild figures without re-running methods).
 
 The central methodological contribution is **how local fidelity is measured**. The standard local
@@ -225,10 +273,11 @@ python run/benchmark.py --n 300 --dim 50 --seeds 3 --snr inf --out /tmp/dr_smoke
 python run/benchmark.py --dataset all --methods all --seeds 3 --dim 768 --n 1000 --snr 1
 # Or a single dataset — results MERGE into results/ (only the re-run dataset+SNR rows are replaced)
 python run/benchmark.py --dataset outliers --methods all --seeds 3 --dim 768 --n 1000 --snr 1
-# Sweeps: dynamic range (clusters) and outlier factor (outliers)
-python run/sweep.py --dynamic-range 2 5 10 20 50 --methods all --seeds 3
+# Sweeps: outlier factor (outliers) and minority fraction (populations)
 python run/sweep.py --sweep outlier_factor --outlier-factor 1.5 2 3 5 8 --methods all --seeds 3
 python run/sweep.py --sweep minority_frac --minority-frac 0.5 0.25 0.1 0.05 --methods all --seeds 3
+# Time-series dataset (multi-series high-D random walks)
+python run/timeseries_probe.py
 # Noise-dims dimension sweep (curse-of-dimensionality supplement; see "Noise regimes")
 python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all --seeds 3 --n 1000
 python run/dimsweep.py --dims 1500 2000 --methods toorPIA --seeds 3 --n 1000 --data-seed 42 0 1 2 3   # extreme-D extension
@@ -243,20 +292,21 @@ configs being re-run), so partial runs never clobber the committed results of ot
 
 A consolidated **`REPORT.html`** dashboard is generated from the result tables with
 `python run/make_report.py` (add `--embed` for a portable single file with base64-embedded figures;
-open from the repo root). It focuses the discussion on **p=5 (near) and full (global)** Shepard ρ and
+open from the repo root). It focuses the discussion on **near (first-mode band) and full (global)**
+Shepard ρ and
 includes: per-config ranking tables with bootstrap CIs and **best (green) / worst (red)** cell
-highlighting; a **composite ranking** (1st→5 … 5th→1 points awarded on the full-ρ order AND the p5-ρ
-order, summed); and a **near-vs-global scatter** (x = Shepard ρ@p5, y = Shepard ρ full) showing which
+highlighting; a **composite ranking** (1st→5 … 5th→1 points awarded on the full-ρ order AND the
+near-ρ order, summed); and a **near-vs-global scatter** (x = near-band ρ, y = full ρ) showing which
 methods reproduce both near and global structure (top-right is best).
 
 ## Repository layout
 
 | path | contents |
 |---|---|
-| `synth/` | synthetic generators (true geometry / true distances known) + SNR noise; `noise_dims.py` (unregistered noise-dims probe) |
+| `synth/` | synthetic generators (true geometry / true distances known) + SNR noise; `random_walk.py` (the time-series dataset); `noise_dims.py` (unregistered noise-dims probe) |
 | `methods/` | uniform `embed(X, seed, device, context) -> Y(N×2)` wrappers + registry |
 | `metrics/` | exact fidelity metrics on all pairwise distances; `label_separation.py` (noise-dims readouts) |
-| `run/` | driver (`benchmark.py`), aggregation, figures, `make_report.py` (REPORT.html); optional `sweep.py` / `robustness.py` / `dimsweep.py` / `refigure.py` |
+| `run/` | driver (`benchmark.py`), aggregation, figures, `make_report.py` (REPORT.html); `timeseries_probe.py` (time-series dataset); optional `sweep.py` / `dimsweep.py` / `refigure.py` |
 | `figures/`, `results/` | generated plots and metric tables |
 | `external_embeddings/` | committed toorPIA coordinate caches + the external-injection path |
 | `tests/` | small-N sanity tests |
@@ -286,8 +336,8 @@ operates. See *Noise regimes* below for the direct test of the opposite, redunda
    Gaussian clusters placed on `K` mutually orthogonal axes (so the global geometry spans `K−1`
    dimensions — genuinely high-D, not a low-effective-dim trap), with a single knob `dynamic_range`
    = inter-cluster distance ÷ intra-cluster spacing. *Purpose:* test whether a method preserves the
-   fine **within-cluster** structure (near band, p5) while also placing the clusters correctly
-   (global); `run/sweep.py` traces both bands as `dynamic_range` varies. Models distinct dense
+   fine **within-cluster** structure (near band) while also placing the clusters correctly
+   (global). Models distinct dense
    sub-populations separated by large gaps in a high-D feature space.
 3. **Continuous transition with known, genuinely high-dimensional global geometry**
    (`synth/transition.py`) — `K=7` "typical-state" clusters at KNOWN centroid positions placed on **K
@@ -332,7 +382,7 @@ operates. See *Noise regimes* below for the direct test of the opposite, redunda
    isolated point in the 2-D map — whether it actually does depends on the DR method. *Purpose:*
    test whether a **single far-away point keeps its separation margin** in 2-D — exactly the single-point property that many-pair statistics such as the band-Shepard ρ
    cannot resolve. *Knob:*
-   `outlier_factor` is the single sweep parameter (peer of `dynamic_range`), default 3, swept over
+   `outlier_factor` is the single sweep parameter, default 3, swept over
    {1.5, 2, 3, 5, 8} by `run/sweep.py --sweep outlier_factor`. *Design decision:* all m outliers
    share ONE factor per dataset (so they are i.i.d. replicates within a run and the dose-response
    comes from the sweep); the alternative — mixing several factors in one dataset — was rejected
@@ -368,6 +418,31 @@ operates. See *Noise regimes* below for the direct test of the opposite, redunda
    question hard, and the dataset connects continuously to the outliers dataset (a small minority
    *without* internal structure is the anomaly case).
 
+6. **Multi-series high-D random walks — the time-series dataset** (`synth/random_walk.py`;
+   driver `run/timeseries_probe.py`) — six independent random walks in D=50 (each time step adds
+   an independent uniform displacement in every dimension; all series start at the origin),
+   concatenated into 6 × 500 = 3000 points and embedded together. This dataset deliberately
+   departs from the latent→orthonormal-projection recipe above: the walk is generated **directly
+   in the ambient dimensions and no noise is added**, because the walk's own randomness *is* the
+   data and its ground truth *is* the ambient geometry (vs-truth ≡ vs-ambient; there is no
+   separate latent space or SNR knob). All methods still run on the main benchmark's footing
+   (toorPIA through the same `basemap_embedding` endpoint). *Geometric ground truth* (provable,
+   and verified empirically in the report's explainer figure): (1) **radial escape** — the
+   distance from the origin grows as √t (‖x_t‖ ≈ step·√(tD/3)); a high-D walk never wanders
+   back; (2) **zigzag at every step** — successive steps are independent, and in high dimensions
+   two independent directions are near-orthogonal (90° ± ~1/√D), so the trajectory never smooths
+   into a curve; (3) **mutually orthogonal series** — the same holds between different series'
+   position vectors, so the walks radiate along mutually perpendicular directions and never
+   approach each other (cross-series distances are Pythagorean: d ≈ √(r_i² + r_j²)). The true
+   shape is a **star of six jagged spokes radiating from the shared origin at right angles**.
+   *Purpose:* trajectory rendering — the shape of real multivariate monitoring data (process
+   sensors, equipment logs): open filamentary structure indexed by (series, time), no clusters —
+   the structural opposite of datasets 1–5. Does the map keep a shared origin, radial
+   separation, monotone time order, and the saw-tooth jitter at once? *Metrics:* the standard
+   Spearman ρ with the pair set selected by (series, time) membership — within-series /
+   within-series near (|Δt| ≤ 20 steps; the time-lag window replaces the distance-percentile
+   near band because "local" is defined by time here) / cross-series / full.
+
 ## Noise regimes: what the isotropic design assumes — and a direct stress test
 
 ### Why the five datasets are curse-of-dimensionality-free by design
@@ -386,8 +461,17 @@ that do **not** self-average.
 
 ### Supplement: the noise-dims dimension sweep (`run/dimsweep.py`)
 
-The **noise-dims sweep** (runner `run/dimsweep.py`; results files `dimsweep_*`) probes the
-opposite, redundancy-free extreme directly. *Design* (`synth/noise_dims.py`, ported from a teaching
+The **noise-dims sweep** (runner `run/dimsweep.py`; results files `dimsweep_*` and
+`dimsweep_embedding_*`) probes the opposite, redundancy-free extreme directly, and makes a
+**two-stage point about toorPIA under noise dimensions**. *Stage 1* — on the same footing as the
+main benchmark (the raw-geometry `basemap_embedding` endpoint), toorPIA already tolerates noise
+dimensions better than every generic method. *Stage 2* — toorPIA additionally ships
+**`basemap_csvform`, its default endpoint for CSV/tabular data analysis** (a distinct pipeline
+with per-item preprocessing), and that endpoint is **essentially indifferent to noise dimensions
+out to hundreds of pure-noise columns** — the property a practitioner needs on real tabular data,
+where feature columns with no signal are routine and their number is unknown in advance. This
+two-stage appeal is why the probe is a supplement rather than a sixth dataset row. *Design*
+(`synth/noise_dims.py`, ported from a teaching
 notebook): three tight Gaussian clusters live in **3 signal columns** (`make_blobs`, std 0.005,
 centers at the unit vectors) and every additional column is pure unit-variance noise; all columns
 are then z-scored. *Mechanism:* each added dimension adds unit noise power at fixed signal power,
@@ -402,18 +486,32 @@ global ρ is only meaningful paired with its near band (the central point of thi
 methodology), and neither band reads cleanly against ambient distances that are noise-dominated
 by construction — the full metric set is still computed into `results/dimsweep_per_run.csv`.
 *Sweep spec:*
-D = 6…768 for all seven methods (the same ambient dimension as the main benchmark, now with zero
-redundancy) plus **toorPIA-only extensions at D=1500 and D=2000** (5 noise realizations × 3 method
+D = 6…768 (with the collapse region resolved at D=250 and 300) for the six generic methods and
+both toorPIA endpoints (the same ambient dimension as the main benchmark, now with zero
+redundancy) plus **csvform-only extensions at D=1500 and D=2000** (5 noise realizations × 3 method
 seeds each — the breaking regime is realization-sensitive); n=1000 (matching both the main
-benchmark and the source notebook), R=3 seeds.
+benchmark and the source notebook), R=3 seeds (`basemap_embedding` is deterministic: 1 run per D).
+The readout is shown both absolute and as the chance-corrected **skill ratio against kNN run
+directly on the raw D-dim features** — the ambient baseline, i.e. what no dimensionality
+reduction at all would give.
 
-**Result (D = 6–768 all methods + D=1500/2000 toorPIA-only, R = 3, n = 1000).** Every method holds the
+**Result.** Every generic method holds the
 three clusters to D≈20–40 (kNN accuracy ≥0.96, except PyMDE which collapses first at D=40: 0.56).
 The collapse then proceeds in order: PCC and Isomap fade from D=80 (0.72 / 0.76 → 0.39 / 0.42 at
 D=200), PCA / t-SNE / UMAP hold 0.85–0.92 at D=80 but drop to 0.46–0.51 by D=200, and from
-D=200–400 every method except toorPIA sits near chance (0.33–0.51 vs chance 0.33). **toorPIA holds
-accuracy 1.00 through D=200, 0.99 at D=400, and 0.98 at D=768** (effective SNR ≈0.004).
-toorPIA-only extensions probe further, each run over **5 independent noise realizations × 3 method
+D=200–400 every generic method sits near chance (0.33–0.59 vs chance 0.33). **Stage 1 — toorPIA's
+raw-geometry `basemap_embedding` endpoint (the one the main benchmark characterizes) outlasts all
+of them**: it tracks the ambient baseline itself (skill ratio ≈ 1 — the 2-D map delivers
+essentially everything the raw feature space's neighborhoods still contain) and at D=200 stands
+at **0.75 vs ≤ 0.51** for the best generic method; its own breaking regime starts an octave later
+(D≈250–400, realization-sensitive: 0.57 / 0.33 / 0.44 at D=250/300/400, one noise realization per
+D). **Stage 2 — the default CSV-analysis endpoint `basemap_csvform` is unaffected where every
+raw-geometry method (toorPIA's own embedding endpoint included) has already collapsed: 1.00
+through D=300, 0.99 at D=400, and 0.98 at D=768** (effective SNR ≈0.004); its skill ratio grows
+to ≈2.8 at D=768 — the 2-D map reads roughly three times more above-chance class signal than kNN
+on the raw 768-dim features themselves.
+The csvform-only extensions probe further, each run over **5 independent noise realizations × 3
+method
 seeds**: at **D=1500** accuracy is **0.92** and realization-stable (per-realization medians
 0.90–0.93), while at **D=2000** (effective SNR ≈0.0015, 1997 noise columns) it enters its
 **breaking regime** — pooled median **0.74**, with the outcome now **noise-realization dependent**
@@ -422,12 +520,28 @@ across noise *draws*, the signature of a critical regime), and every realization
 chance. The source notebook's own noise realization — a sixth, independent draw through the same
 API — lands at 0.84, consistent with this range. The PyMDE panels are a useful caution: from D≈40 it draws crisp, well-separated clumps
 whose label composition is fully mixed — plausible-looking structure that is entirely false.
-Figures: `figures/noise_dims/` (`dimension_curve.png`, `dims_grid.png`); tables:
-`results/dimsweep_{per_run,aggregated}.csv`; rendered in `REPORT.html#noise-dims`. Reproduce:
-`python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all --seeds 3 --n 1000`,
+The practical conclusion: for CSV data where irrelevant columns are numerous — or their number is
+simply unknown — `basemap_csvform`'s per-item preprocessing preserves the cluster structure that
+raw-distance processing loses in this regime.
+Figures: `figures/noise_dims/` (`dimension_curve.png` — absolute + skill-ratio panels,
+`dims_grid.png` — maps incl. both toorPIA endpoints); tables:
+`results/dimsweep_{per_run,aggregated}.csv` (csvform + generic methods) and
+`results/dimsweep_embedding_{per_run,aggregated}.csv` (embedding arm); rendered in
+`REPORT.html#noise-dims`. Endpoint note:
+the csvform rows drive the `basemap_csvform` pipeline through its DataFrame form (spot-verified
+against
+a direct `basemap_csvform` call at D=768: pairwise-distance ρ 0.998, kNN accuracy 0.975 vs 0.976);
+it exposes `random_seed`, hence R=3 seeds and CIs, unlike the deterministic
+`basemap_embedding` arm (`--toorpia-endpoint embedding`, 1 run per D). The ambient baseline of
+the skill ratio is chance-corrected — (acc − 1/3)/(acc_ambient − 1/3) — because both accuracies
+approach chance (not 0) as D grows. Reproduce:
+`python run/dimsweep.py --dims 6 10 20 40 80 100 200 250 300 400 768 --methods all --seeds 3
+--n 1000`,
 then `python run/dimsweep.py --dims 1500 2000 --methods toorPIA --seeds 3 --n 1000
---data-seed 42 0 1 2 3` (results merge by (dim, data_seed, method, seed); the committed toorPIA
-caches make both replays offline).
+--data-seed 42 0 1 2 3` (results merge by (dim, data_seed, method, seed)), the embedding arm
+`python run/dimsweep.py --dims 6 10 20 40 80 100 200 250 300 400 768 --methods toorPIA
+--toorpia-endpoint embedding`, and `python run/dimsweep.py --figures-only`; the committed toorPIA
+caches make every replay offline.
 
 The idealized datasets and the noise-dims sweep bracket reality from the two extremes (maximal
 signal redundancy vs none); realistic middle-ground variants (sparse loadings, correlated noise)
@@ -447,19 +561,31 @@ methods run **R independent seeds** (default R=3); deterministic methods run onc
 | **UMAP** | umap-learn | `n_neighbors=15`, `min_dist=0.1`, `random_state=seed` | yes |
 | **PyMDE** | pymde | `preserve_distances`, `Absolute` loss, `Standardized` constraint, CPU | yes |
 | **PCC** | pccdr | `cluster=False, pearson=True, spearman=False, n_components=2, num_points=N` | yes |
-| **toorPIA** | toorpia (remote API) | `fit_transform(..., random_seed=seed, vector_normalization=False)` | yes |
+| **toorPIA** | toorpia (remote API) | `basemap_embedding(X, l2_normalization=False)` | no |
 
 Notes:
 - **t-SNE uses `init='random'`** (seeded) so independent seeds genuinely vary the embedding, making
   the run-to-run stability analysis meaningful. `init='pca'` would give a near-fixed embedding and is
   the lower-variance alternative.
-- **toorPIA is called with `vector_normalization=False`**: toorPIA's internal `vector_normalization`
-  rescales each input vector to unit (norm-1) length before embedding. We disable it so toorPIA
-  embeds the SAME raw feature vectors that the other methods receive and that the fidelity metrics
-  are computed on — otherwise toorPIA would be characterized on a different (unit-normalized)
-  representation, breaking comparability.
+- **toorPIA is called via the embedding endpoint with `l2_normalization=False`** (toorpia 1.2.0
+  `basemap_embedding`): the endpoint applies **no per-column normalization and no centering**, and we
+  disable its per-row L2 normalization, so toorPIA embeds the SAME raw feature vectors that the
+  other methods receive and that the plain-Euclidean fidelity metrics are computed on —
+  preprocessing aligned with the evaluation basis. The embedding endpoint exposes no random seed
+  and is deterministic up to server jitter (measured run-to-run mean |Δ| ≈ 1e-3 of the map scale),
+  so toorPIA is treated as a deterministic method.
 - **toorPIA is placement knob-free** — unlike t-SNE (`perplexity`) or UMAP (`n_neighbors`), no
   user-tunable hyperparameter changes its embedding layout, so the same input yields a unique placement.
+- **Defaults do not decide any leadership (but one sensitivity is real and disclosed)** —
+  `run/hyperparam_sensitivity.py` sweeps t-SNE's `perplexity` and UMAP's `n_neighbors` over 5–100 on
+  density and clusters (SNR=1, R=3). Raising t-SNE's perplexity moves both ranked columns: on
+  density, perplexity=100 lifts full ρ 0.30 → 0.60 (mid-pack; still below PCA 0.70 / toorPIA 0.82 /
+  PCC 0.82) and first-mode near ρ 0.26 → 0.41 — at perplexity ≥ 50 t-SNE overtakes toorPIA's density
+  near ρ (0.31); on clusters its near ρ rises 0.39 → 0.54 while full ρ stays flat. Re-scored with the
+  tuned values the composite leaders are unchanged (density: toorPIA 8 vs t-SNE 7; clusters: 9 vs 6),
+  and the same settings erode t-SNE's own recall@15 (0.254 → 0.230 / 0.270 → 0.208): the
+  global-vs-local trade-off is intrinsic, not an artifact of the default. UMAP: small gains only
+  (`results/hyperparam_sensitivity_*.csv`, `figures/hyperparam/sensitivity_snr1.png`).
 - **PCC is used label-free** (`cluster=False`): the cluster-supervision (MiCS / CrossEntropy) term is
   disabled entirely; the only objective is the **Pearson** correlation between high-D and 2-D
   distances to sampled reference points. `fit_transform(X, y)` requires `y`; with `cluster=False` it
@@ -479,8 +605,9 @@ strictly **cache-first**:
 
 On-disk path (`methods/external.py`):
 ```
-external_embeddings/{dataset}/toorpia/{mode}/{tag}/seed{seed}.npy     mode=fit   tag=n{N}_d{D}_snr{snr}
+external_embeddings/{dataset}/toorpia/{mode}/{tag}/seed{seed}.npy     mode=embedding   tag=n{N}_d{D}_snr{snr}
 ```
+(toorPIA is deterministic, so each configuration has a single `seed0` cache.)
 The `{tag}` extends the original spec's simpler `{dataset}/{method}/seed{seed}.npy` so different SNR-sweep
 points never collide. Committing these `.npy` files (plain coordinates, not the algorithm) lets public
 users reproduce every figure/metric **without a toorPIA key**. The same path is the generic
@@ -506,7 +633,7 @@ only: *what, concretely, is traded away for that speed?*
 | **t-SNE** | **local neighborhoods** (perplexity-scaled affinities; far-pair attractions vanish) | scalability + cluster legibility |
 | **UMAP** | **local neighborhoods** (k-NN graph, k=15, with negative sampling) | scalability + cluster legibility |
 
-Two consequences of this axis are already measured by the benchmark. The **within-cluster scale
+Two consequences of this axis are already measured by the benchmark. The **tightest-cluster scale
 collapse** (over-compression metric): when the loss is dominated by, or restricted to, a subset of
 relations, the remaining structure can be squeezed without penalty. And — the reason for the fourth
 dataset — **outlier separation**:
@@ -565,8 +692,18 @@ high dimensions distances *concentrate*, so most pairs sit in a narrow far band 
 dominated by far pairs; the accuracy of **near** distances is buried. We therefore restrict ρ to
 cumulative distance **bands** defined on the GLOBAL high-D pairwise-distance distribution: the band at
 cutoff `p` is the set of pairs whose high-D distance is in the lowest `p`% of all pairs. Sweeping
-`p ∈ {5,10,20,30,50,75,100}%` gives a near→mid→far profile; **`p=5` (the globally-nearest 5% of pairs)
-isolates near-neighbor descriptive power**, while `p=100` recovers the classic global number.
+`p ∈ {5,10,20,30,50,75,100}%` gives a near→mid→far profile, and `p=100` recovers the classic global
+number. The HEADLINE **near band is structure-adaptive** (`metrics.distances.first_mode_threshold`;
+deterministic, all pairs): the distance profile of structured data is multimodal — its first mode is
+the within-structure pairs — and the band is all pairs up to the density valley where that first mode
+decays into the tail (histogram 256 bins, double length-9 boxcar smoothing, minimum between the first
+two modes — a mode must reach ≥5% of the profile maximum and the valley must dip below 95% of the
+first mode — below-median guard; 5th-percentile fallback if unimodal, flagged, never triggered
+here). At SNR=1 the
+boundary lands at p20.5 / p14.2 / p14.9 / p19.7 / p18.0 (density / clusters / transition / outliers /
+populations) — on the three clustered datasets exactly the true within-cluster pair fraction, i.e.
+the label-free band recovers the ground-truth notion of "near". Recorded per row as
+`near_band_pct` / `near_band_fallback`.
 
 Crucially the band uses **one fixed absolute radius for the whole dataset** — every point is judged on
 the same distance threshold. This is what makes it a *fair* near-neighbor metric, in contrast to the
@@ -595,7 +732,7 @@ Each band metric is reported BOTH `__vs_ambient` and `__vs_truth`.
 > to k-NN-based methods (t-SNE / UMAP)**; they measure agreement with a k-NN neighborhood, not faithful
 > reproduction of near distances. We keep them for comparability but treat them as a **biased
 > reference**, not a correct near-neighbor metric. The fair near-neighbor metric is the **fixed-radius
-> near-band Shepard ρ (p=5)** above. (Empirically, distance-preservers dominate the full / near band
+> first-mode near-band Shepard ρ** above. (Empirically, distance-preservers dominate the full band
 > Shepard ρ and stress, while t-SNE / UMAP dominate recall@k — the band curve interpolates between.)
 >
 > A **per-point band-Shepard** variant (each point's lowest-`p`% pairs) is provided only for contrast:
@@ -616,7 +753,7 @@ well the pairs among the normal points are ordered. This restriction exists beca
 *few* pairs, so the all-pair ρ moves only slightly — the same standard machinery as the distance
 bands, with the subset selected by endpoint membership instead of by distance percentile. **On the
 outliers dataset the composite ranking scores a third column on it** (1st→5 … 5th→1, alongside
-full and p5), so a method cannot rank well there while failing the anomaly baseline; the
+full and near), so a method cannot rank well there while failing the anomaly baseline; the
 `outlier ρ vs full ρ` scatter (the analogue of the near-vs-global scatter) shows both at once.
 
 Descriptive only (not scored): the same-kind **pair angles** from `outlier_pair_metrics` (truth
@@ -634,7 +771,7 @@ Shepard/embedding pictures. Its raw columns remain in the per-run CSVs and its c
 ### The imbalanced-populations dataset's diagnostics (membership-restricted ρ)
 
 The analysis theme is **minority-structure preservation under data imbalance**. The ranking table
-keeps the benchmark's standard two-sided evaluation — global (full ρ) and local (near-band p5) —
+keeps the benchmark's standard two-sided evaluation — global (full ρ) and local (first-mode near ρ) —
 with no extra scored columns. The diagnostics below use the same standard machinery, with the pair
 subset selected by the endpoints' **population membership** (exactly as the outliers dataset
 subsets by "involves an outlier"): **majority-internal ρ** (both endpoints in the majority),
@@ -645,13 +782,7 @@ reported in the results CSVs. The sweep curve reads exactly like the outliers da
 Shepard ρ next to the pooled **minority-pair ρ** (`minority_shepard` — the same standard ρ over
 all pairs involving at least one minority endpoint, i.e. all pairs minus the majority-only pairs;
 the direct analog of the anomaly-pair ρ, and one number that drops if either the minority's
-internal structure or its placement is scrambled). The **population over-compression ×** diagnostic
-applies the repo's over-compression formula one level up (median within-population between-cluster
-distance ÷ median cross-population distance, truth over 2-D): ≈1 = the internal layouts keep their
-scale relative to the group separation, ≫1 = they are squeezed toward knots while the group gap
-dominates. Caveat stated once: read it together with cross-population ρ — a method that never
-renders the group separation at all (cross ρ ≈ 0) can post an unsuspicious value here without
-deserving it.
+internal structure or its placement is scrambled).
 
 ### Avoiding circularity
 
@@ -694,18 +825,20 @@ one cluster stay co-directional (`pair_angle`)? The direction of an addplot poin
 information: it should say *which* normal condition the anomaly departed from. The ambient
 high-D features resolve attribution 10/10 (the anchor signal survives SNR=1 noise), so a
 faithful map can too. Each method maps the added points with its own out-of-sample operation:
-PCA / Isomap `transform` (deterministic), UMAP seeded `transform`, toorPIA server-side `addplot`
-on the fitted map (live fit + addplot per seed, committed as a self-consistent
-`basemap_fit`/`basemap_add` cache pair — the benchmark's fit cache is not reusable because the
-server keeps the fitted-map state and is not bit-deterministic across sessions). **t-SNE
-(sklearn), PyMDE, and PCC expose no out-of-sample operation** — reported as "not operable" rows:
-for monitoring, adding data means re-fitting, and a re-fit re-arranges the map. Results in
-`results/addplot_*.csv` and the REPORT's *addplot* section.
+PCA / Isomap `transform` (deterministic), UMAP seeded `transform`, toorPIA server-side
+`addplot_embedding` on the fitted basemap (live `basemap_embedding` + per-row
+`addplot_embedding` in one session, committed as a self-consistent
+`embedding_basemap`/`embedding_addplot` cache pair; the addplot inherits the basemap's
+preprocessing server-side, so basemap and added points are guaranteed identical treatment).
+**t-SNE (sklearn), PyMDE, and PCC expose no out-of-sample operation** — reported as "not
+operable" rows: for monitoring, adding data means re-fitting, and a re-fit re-arranges the map.
+Results in `results/addplot_*.csv` and the REPORT's *addplot* section.
 
-**Result (R=3, SNR=1).** **toorPIA is the only method that answers both questions**: all 10
-anchored anomalies land far outside the normal region (radius ratio median 5.87, min 5.23 —
-identical across seeds) **and** each one's direction points at its source cluster (attribution
-10/10, angle to own cluster 0.6° median / 3.0° max, pair angle 0.6°) — the map says "this is an
+**Result (SNR=1; R=3 for UMAP, deterministic methods run once).** **toorPIA is the only method
+that answers both questions**: all 10
+anchored anomalies land far outside the normal region (radius ratio median 9.70, min 8.62)
+**and** each one's direction points at its source cluster (attribution
+10/10, angle to own cluster 1.0° median / 3.4° max, pair angle 1.7°) — the map says "this is an
 anomaly, and it departed from cluster k" in one reading. **PCA, Isomap, and UMAP draw the
 anomalies inside or at the normal clusters** (median radius ratio 0.97 / 1.34 / 0.96–1.04,
 minima down to 0.26): the orthogonal deviation is dropped or interpolated away, so the anomaly
@@ -745,16 +878,13 @@ out-of-sample transform).
 
 Verified against the installed packages; differences are reported rather than silently adapted:
 
-1. **toorPIA exposes a seed.** The installed `toorpia==1.1.1` `fit_transform` accepts `random_seed`
-   (default 42). We pass `random_seed=seed` per run (cleaner than treating runs as uncontrolled
-   draws). The spec assumed no seed was available.
-2. **PCC `fit_transform(X, y)` requires `y`** (positional). With `cluster=False` it is unused; we pass
+1. **PCC `fit_transform(X, y)` requires `y`** (positional). With `cluster=False` it is unused; we pass
    `np.zeros(N)`. The installed defaults are already `pearson=True, spearman=False`; the class default
    `cluster=True` is always overridden to `cluster=False`.
-3. **PCC reference sampling is with replacement** (`np.random.choice`, `num_points`); for `N <
+2. **PCC reference sampling is with replacement** (`np.random.choice`, `num_points`); for `N <
    num_points` it does not enumerate all points. We set `num_points = N` and report this — it is not
    claimed to be "exact".
-4. **PCC-EXCLUDED supplement uses a subclass override** (`run/pcc_excluded.py`): pccdr's API does
+3. **PCC-EXCLUDED supplement uses a subclass override** (`run/pcc_excluded.py`): pccdr's API does
    not accept an explicit reference set, so the supplement subclasses `PCC` and overrides
    `get_reference_points` to draw the same with-replacement `np.random.choice` over bulk indices
    only. No other pccdr code path is touched; the stock benchmark runs use the unmodified package.

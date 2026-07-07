@@ -22,3 +22,7 @@ results/n3000/
 figures/n3000/
 results/run_n3000.log
 external_embeddings/**/n3000_*/
+# ...but the time-series dataset (6 series x 500 steps) is genuinely N=3000 and its
+# toorPIA cache IS a committed deliverable (offline reproduction of run/timeseries_probe.py)
+!external_embeddings/random_walk/
+!external_embeddings/random_walk/**

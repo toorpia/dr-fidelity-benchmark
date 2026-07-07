@@ -39,16 +39,15 @@ def test_population_metrics_identity_and_shuffled_minority():
     rng = np.random.default_rng(3)
     ds = make_dataset("populations", n=400, d=40, seed=3)
     X, pop, labs = ds["clean"], ds["population"], ds["labels"]
-    row = population_metrics(X, X.copy(), X, pop, labs)
+    row = population_metrics(X, X.copy(), pop)
     for k in ("within_majority_shepard__vs_ambient", "within_minority_shepard__vs_ambient",
               "cross_population_shepard__vs_ambient", "minority_shepard__vs_ambient"):
         assert abs(row[k] - 1.0) < 1e-9
-    assert abs(row["population_over_compression"] - 1.0) < 1e-9
     # shuffling the minority's positions among themselves destroys the minority-internal ordering
     # but leaves the majority-internal pairs untouched
     Y = X.copy()
     mi = np.flatnonzero(pop == 1)
     Y[mi] = Y[mi[rng.permutation(len(mi))]]
-    row2 = population_metrics(X, Y, X, pop, labs)
+    row2 = population_metrics(X, Y, pop)
     assert abs(row2["within_majority_shepard__vs_ambient"] - 1.0) < 1e-9
     assert row2["within_minority_shepard__vs_ambient"] < 0.3

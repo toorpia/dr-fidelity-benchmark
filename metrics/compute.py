@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from .distances import DEFAULT_CUTOFFS, condensed_distances, square_distances
+from .distances import (DEFAULT_CUTOFFS, condensed_distances, first_mode_threshold,
+                        square_distances)
 from .neighbors import DEFAULT_KS, recall_at_k, trustworthiness_continuity
 from .shepard import band_shepard, per_point_band_shepard
-from .stress import band_stress, stress_to_fidelity
+from .stress import band_stress, normalized_stress, stress_to_fidelity
 
 
 def _band_block(d_hd: np.ndarray, d_2d: np.ndarray, tag: str, cutoffs) -> dict:
@@ -23,6 +24,24 @@ def _band_block(d_hd: np.ndarray, d_2d: np.ndarray, tag: str, cutoffs) -> dict:
     for p, st in band_stress(d_hd, d_2d, cutoffs).items():
         out[f"stress_p{p}__{tag}"] = st
         out[f"stress_fidelity_p{p}__{tag}"] = stress_to_fidelity(st)
+    # HEADLINE near band: structure-adaptive -- all pairs inside the FIRST mode of the reference
+    # distance profile (up to the density valley where it decays into the tail). The fixed
+    # percentile bands above remain as the reference profile.
+    from scipy.stats import spearmanr
+    thr, fallback = first_mode_threshold(d_hd)
+    m = d_hd <= thr
+    if m.sum() >= 3:
+        rho, _ = spearmanr(d_hd[m], d_2d[m])
+        st = normalized_stress(d_hd[m], d_2d[m])
+        out[f"shepard_near__{tag}"] = float(rho)
+        out[f"stress_near__{tag}"] = st
+        out[f"stress_fidelity_near__{tag}"] = stress_to_fidelity(st)
+    else:
+        out[f"shepard_near__{tag}"] = float("nan")
+        out[f"stress_near__{tag}"] = float("nan")
+        out[f"stress_fidelity_near__{tag}"] = float("nan")
+    out[f"near_band_pct__{tag}"] = float(100.0 * m.mean())
+    out[f"near_band_fallback__{tag}"] = float(fallback)
     return out
 
 
@@ -63,12 +82,12 @@ def compute_all(X_ambient: np.ndarray, Y: np.ndarray, X_truth: np.ndarray | None
             for p, rho in per_point_band_shepard(X_truth, Y, cutoffs, d_hd_sq=d_truth_sq).items():
                 row[f"pp_shepard_p{p}__vs_truth"] = rho
 
-    # --- within-cluster scale preservation (value/density metric; needs cluster labels) ---
+    # --- tightest-cluster scale preservation (value/density metric; needs cluster labels) ---
     if labels is not None and X_truth is not None:
-        from .cluster_scale import cluster_scale_metrics
+        from .cluster_scale import tight_cluster_metrics
         labs = np.asarray(labels)
-        if np.unique(labs[labs >= 0]).size >= 2:
-            row.update(cluster_scale_metrics(X_truth, Y, labs))
+        if (labs >= 0).any():
+            row.update(tight_cluster_metrics(X_truth, Y, labs))
 
     # --- outlier separation preservation (single-point metric; needs ground-truth outlier ids) ---
     # Reported vs-ambient ONLY, matching the repo's primary axis (how faithfully the 2-D map
@@ -84,9 +103,9 @@ def compute_all(X_ambient: np.ndarray, Y: np.ndarray, X_truth: np.ndarray | None
                                             tag="vs_ambient"))
 
     # --- population-membership metrics (imbalanced two-population dataset) ---
-    if population is not None and labels is not None and X_truth is not None:
+    if population is not None:
         from .populations import population_metrics
-        row.update(population_metrics(X_ambient, Y, X_truth, population, labels))
+        row.update(population_metrics(X_ambient, Y, population))
 
     # --- conventional neighbor-preservation metrics (vs ambient, documented-as-biased) ---
     for k, v in recall_at_k(X_ambient, Y, ks).items():

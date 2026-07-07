@@ -4,13 +4,25 @@ We never inspect toorPIA's internals; we only characterize its input->output beh
 strictly cache-first, which makes the published benchmark reproducible offline WITHOUT a key:
 
 1. If the cached/injected embedding exists at the on-disk contract path -> load it, NO API call.
-2. Else if ``TOORPIA_API_KEY`` is set -> call ``toorPIA().fit_transform(...)``, write the cache.
+2. Else if ``TOORPIA_API_KEY`` is set -> call ``toorPIA().basemap_embedding(...)``, write the cache.
 3. Else -> raise ``SkipMethod`` so the benchmark runs end-to-end without toorPIA.
 
-Verified installed API (toorpia 1.1.1): ``toorPIA(api_key=None)`` (reads ``TOORPIA_API_KEY`` /
-``TOORPIA_API_URL`` from the environment); ``fit_transform(data, label=None, random_seed=42, ...)``
-returns an (n, 2) array. NOTE vs the original spec: this version DOES expose ``random_seed`` -- we pass
-``random_seed=seed`` per run (documented deviation).
+Verified installed API (toorpia 1.2.0): ``toorPIA(api_key=None)`` (reads ``TOORPIA_API_KEY`` /
+``TOORPIA_API_URL`` from the environment); ``basemap_embedding(data, l2_normalization=...)`` accepts
+an (n, d) ndarray directly and returns ``{"xyData": (n, 2) array, "mapNo": ..., "shareUrl": ...}``.
+
+The embedding endpoint applies NO per-column normalization and NO centering; the only preprocessing
+option is a per-row L2 normalization, which we pass as ``l2_normalization=False`` so toorPIA embeds
+the very same raw feature vectors the other methods receive and the plain-Euclidean metrics measure
+(preprocessing aligned with the evaluation basis). The endpoint exposes no random seed and is
+deterministic up to server jitter (measured run-to-run mean |diff| ~1e-3 of the map scale), so the
+method is registered ``stochastic=False`` and cached as ``seed0`` only.
+
+History: earlier benchmark revisions used ``fit_transform(vector_normalization=False)``, whose
+engine unconditionally normalizes every input column by 2 sigma before computing high-D distances --
+so toorPIA alone saw a standardized geometry while the other methods and the ambient reference saw
+the raw one. Those embeddings remain cached under ``toorpia/fit/`` for provenance; the current
+``toorpia/embedding/`` tree is what the benchmark consumes.
 """
 from __future__ import annotations
 
@@ -21,7 +33,7 @@ import numpy as np
 from .base import SkipMethod, register
 from .external import config_tag, external_path, load_external, save_external
 
-MODE = "fit"
+MODE = "embedding"
 
 
 def _coords_from_result(res) -> np.ndarray:
@@ -40,8 +52,8 @@ def _coords_from_result(res) -> np.ndarray:
     return arr
 
 
-@register("toorPIA", stochastic=True, vector_normalization=False)
-def embed_toorpia(X, seed, device="cpu", context=None, vector_normalization=False):
+@register("toorPIA", stochastic=False, l2_normalization=False)
+def embed_toorpia(X, seed, device="cpu", context=None, l2_normalization=False):
     if context is None or "root" not in context or "dataset" not in context:
         raise SkipMethod("toorPIA needs run context (root, dataset, tag); none provided")
     root, dataset = context["root"], context["dataset"]
@@ -62,21 +74,16 @@ def embed_toorpia(X, seed, device="cpu", context=None, vector_normalization=Fals
 
     import time
 
-    import pandas as pd
     from toorpia import toorPIA
 
-    df = pd.DataFrame(np.ascontiguousarray(X, dtype=np.float64),
-                      columns=[f"d{i}" for i in range(X.shape[1])])
+    data = np.ascontiguousarray(X, dtype=np.float64)
     # Retry transient API failures (rate-limit / transport blips) with backoff before giving up, so a
     # single hiccup does not drop toorPIA for the rest of a long sweep.
     last_err = None
     for attempt in range(4):
         try:
             client = toorPIA()
-            # vector_normalization=False disables toorPIA's internal unit-norm (norm-1) rescaling so it
-            # embeds the same raw feature vectors the other methods receive and the metrics measure.
-            res = client.fit_transform(df, label=None, random_seed=int(seed),
-                                       vector_normalization=vector_normalization)
+            res = client.basemap_embedding(data, l2_normalization=l2_normalization)
             Y = _coords_from_result(res)
             if Y.shape != (X.shape[0], 2):
                 raise SkipMethod(f"toorPIA returned shape {Y.shape}, expected {(X.shape[0], 2)}")

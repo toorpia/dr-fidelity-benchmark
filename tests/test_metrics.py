@@ -57,3 +57,39 @@ def test_truth_block_present_when_truth_given():
     row = compute_all(X, Y, X_truth=X)
     assert any(k.endswith("__vs_truth") for k in row)
     assert "shepard_p100__vs_truth" in row
+
+
+def test_first_mode_threshold_bimodal_and_fallback():
+    from metrics.distances import first_mode_threshold
+    rng = np.random.default_rng(0)
+    # bimodal profile: near mode at ~1, far mode at ~10 -> valley between them, no fallback
+    d = np.concatenate([rng.normal(1.0, 0.15, 20000), rng.normal(10.0, 1.0, 80000)])
+    d = d[d > 0]
+    thr, fb = first_mode_threshold(d)
+    assert not fb
+    assert 1.5 < thr < 8.0
+    frac = np.mean(d <= thr)
+    assert 0.15 < frac < 0.30          # captures the near mode, not the far bulk
+    # unimodal profile -> p5 fallback, flagged
+    u = rng.normal(10.0, 1.0, 100000)
+    thr_u, fb_u = first_mode_threshold(u)
+    assert fb_u
+    assert abs(np.mean(u <= thr_u) - 0.05) < 0.01
+
+
+def test_tight_cluster_metrics_identity_crush_and_min_pts():
+    from metrics.cluster_scale import tight_cluster_metrics
+    rng = np.random.default_rng(1)
+    # three clusters: one tight (60 pts, sigma .01), one loose (60, sigma 1), one tiny-tight (5 pts)
+    tight = rng.normal(0, 0.01, (60, 4))
+    loose = rng.normal(8, 1.0, (60, 4))
+    tiny = rng.normal(-8, 0.001, (5, 4))
+    X = np.vstack([tight, loose, tiny])
+    labels = np.array([0] * 60 + [1] * 60 + [2] * 5)
+    row = tight_cluster_metrics(X, X.copy(), labels)
+    assert row["tight_cluster"] == 0          # tiny cluster excluded by min_pts, tight one wins
+    assert abs(row["tight_over_compression"] - 1.0) < 1e-9
+    Y = X.copy()
+    Y[:60] = Y[:60].mean(axis=0) + (Y[:60] - Y[:60].mean(axis=0)) / 10.0   # crush cluster 0 by 10x
+    row2 = tight_cluster_metrics(X, Y, labels)
+    assert 5.0 < row2["tight_over_compression"] < 15.0

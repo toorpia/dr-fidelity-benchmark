@@ -1,18 +1,14 @@
-"""Single-knob sweeps: dynamic_range on `clusters`, outlier_factor on `outliers`,
-minority_frac on `populations`.
+"""Single-knob sweeps: outlier_factor on `outliers`, minority_frac on `populations`.
 
 For each knob value, generate the dataset, embed every method over R seeds, and record the sweep
 metrics. Modes:
 
-* ``--sweep dynamic_range`` (default) -- the original sweep (CLEAN data): near-band (`p5`) and
-  global (`full`) Shepard rho vs the inter- to intra-cluster ratio of the `clusters` dataset.
 * ``--sweep outlier_factor`` -- (CLEAN data) global Shepard rho and the anomaly-pair-restricted
   Shepard rho vs the outlier separation factor of the `outliers` dataset.
 * ``--sweep minority_frac`` -- (SNR=1, matching the report's canonical noise level) the
   population-membership rho family vs the minority population's share of the points, on the
   imbalanced two-population dataset.
 
-    python run/sweep.py --dynamic-range 2 5 10 20 50 --methods all --seeds 3
     python run/sweep.py --sweep outlier_factor --outlier-factor 1.5 2 3 5 8 --methods all --seeds 3
     python run/sweep.py --sweep minority_frac --minority-frac 0.5 0.25 0.1 0.05 --methods all --seeds 3
 """
@@ -50,16 +46,11 @@ from methods import SkipMethod, default_methods, get_method  # noqa: E402
 from metrics.compute import compute_all  # noqa: E402
 from run.aggregate import bootstrap_median_ci  # noqa: E402
 from run import figures  # noqa: E402
-from synth.clusters import make_clusters  # noqa: E402
 from synth.outliers import make_outliers  # noqa: E402
 from synth.populations import make_populations  # noqa: E402
 
 # per-mode configuration: knob column, dataset factory, sweep metrics, output stem, figure, figdir
 MODES = {
-    "dynamic_range": dict(
-        metrics=["shepard_p5__vs_ambient", "shepard_p10__vs_ambient", "full_shepard",
-                 "shepard_p100__vs_truth"],
-        stem="sweep", figdir="clusters", ctx_dataset="clusters_sweep", tag="dr"),
     "outlier_factor": dict(
         metrics=["full_shepard", "shepard_p5__vs_ambient", "outlier_shepard__vs_ambient",
                  "pair_angle_2d_max"],
@@ -67,7 +58,7 @@ MODES = {
     "minority_frac": dict(
         metrics=["full_shepard", "shepard_p5__vs_ambient", "minority_shepard__vs_ambient",
                  "within_majority_shepard__vs_ambient", "within_minority_shepard__vs_ambient",
-                 "cross_population_shepard__vs_ambient", "population_over_compression"],
+                 "cross_population_shepard__vs_ambient"],
         stem="sweep_populations", figdir="populations", ctx_dataset="populations_sweep", tag="mf"),
 }
 
@@ -77,9 +68,8 @@ def set_seeds(seed):
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(description="single-knob sweep (dynamic_range | outlier_factor)")
-    p.add_argument("--sweep", choices=list(MODES), default="dynamic_range")
-    p.add_argument("--dynamic-range", nargs="+", type=float, default=[2, 5, 10, 20, 50])
+    p = argparse.ArgumentParser(description="single-knob sweep (outlier_factor | minority_frac)")
+    p.add_argument("--sweep", choices=list(MODES), required=True)
     p.add_argument("--outlier-factor", nargs="+", type=float, default=[1.5, 2, 3, 5, 8])
     p.add_argument("--minority-frac", nargs="+", type=float, default=[0.5, 0.25, 0.1, 0.05])
     p.add_argument("--methods", default="all")
@@ -87,7 +77,7 @@ def main(argv=None):
     p.add_argument("--dim", type=int, default=768)
     p.add_argument("--n", type=int, default=1000)
     p.add_argument("--n-clusters", type=int, default=None,
-                   help="bulk cluster count (default: 7 for dynamic_range, 5 for outlier_factor)")
+                   help="bulk cluster count (default: 5)")
     p.add_argument("--device", default="cpu")
     p.add_argument("--data-seed", type=int, default=0)
     p.add_argument("--out", default=str(ROOT / "results"))
@@ -96,7 +86,7 @@ def main(argv=None):
 
     mode = MODES[args.sweep]
     knob = args.sweep
-    values = {"dynamic_range": args.dynamic_range, "outlier_factor": args.outlier_factor,
+    values = {"outlier_factor": args.outlier_factor,
               "minority_frac": args.minority_frac}[knob]
     methods = default_methods() if args.methods == "all" else args.methods.split(",")
     out_dir = Path(args.out); out_dir.mkdir(parents=True, exist_ok=True)
@@ -106,10 +96,7 @@ def main(argv=None):
 
     rows, skipped = [], set()
     for v in values:
-        if knob == "dynamic_range":
-            base = make_clusters(n=args.n, d=args.dim, seed=args.data_seed,
-                                 n_clusters=args.n_clusters or 7, dynamic_range=v)
-        elif knob == "outlier_factor":
+        if knob == "outlier_factor":
             base = make_outliers(n=args.n, d=args.dim, seed=args.data_seed,
                                  n_clusters=args.n_clusters or 5, outlier_factor=v)
         else:
@@ -157,7 +144,11 @@ def main(argv=None):
                 f"populations {100 - pct}% vs {pct}%", 1.0, figdir,
                 fname=f"population_gallery_mf{v:g}.png")
 
-    per_run = pd.DataFrame(rows)
+    # method-aware merge (same contract as run/benchmark.py): a method-subset re-run replaces only
+    # that method's rows -- keyed without seed so a changed seed structure purges stale seeds
+    from run.benchmark import merge_with_existing
+    per_run = merge_with_existing(pd.DataFrame(rows), out_dir / f"{mode['stem']}_per_run.csv",
+                                  key_cols=[knob, "method"])
     per_run.to_csv(out_dir / f"{mode['stem']}_per_run.csv", index=False)
 
     # aggregate: median + bootstrap 95% CI per (method, knob value, metric)
@@ -175,10 +166,10 @@ def main(argv=None):
     agg = pd.DataFrame(agg)
     agg.to_csv(out_dir / f"{mode['stem']}_aggregated.csv", index=False)
 
-    present = [m for m in methods if (agg.method == m).any()]
-    if knob == "dynamic_range":
-        figures.dynamic_range_curve(agg, present, figdir)
-    elif knob == "outlier_factor":
+    # plot every method present in the MERGED table (not just the ones run this time), so a
+    # method-subset re-run still redraws the full curve
+    present = [m for m in default_methods() if (agg.method == m).any()]
+    if knob == "outlier_factor":
         figures.sweep_outliers_curve(agg, present, figdir)
     else:
         figures.populations_sweep_curve(agg, present, figdir)

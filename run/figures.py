@@ -17,6 +17,8 @@ from metrics.distances import DEFAULT_CUTOFFS, band_thresholds, condensed_distan
 _METHOD_COLORS = {
     "PCA": "#1f77b4", "Isomap": "#17becf", "PyMDE": "#2ca02c", "PCC": "#9467bd",
     "t-SNE": "#ff7f0e", "UMAP": "#d62728", "toorPIA": "#000000",
+    # the noise-dims supplement shows toorPIA through both of its endpoints
+    "toorPIA (basemap_csvform)": "#000000", "toorPIA (basemap_embedding)": "#7f7f7f",
 }
 
 
@@ -89,7 +91,8 @@ def shepard_scatter(X_ambient, embeddings, dataset, snr, out_dir, cutoffs=DEFAUL
     else:
         sel = None
         d_hd_p = d_hd
-    thr = [np.percentile(d_hd, 5)]   # mark only the p=5 near-band boundary
+    from metrics.distances import first_mode_threshold
+    thr = [first_mode_threshold(d_hd)[0]]   # mark the first-mode near-band boundary
     methods = list(embeddings)
     ncol = min(4, len(methods)); nrow = int(np.ceil(len(methods) / ncol))
     fig, axes = plt.subplots(nrow, ncol, figsize=(3.6 * ncol, 3.1 * nrow), squeeze=False)
@@ -107,7 +110,7 @@ def shepard_scatter(X_ambient, embeddings, dataset, snr, out_dir, cutoffs=DEFAUL
         cb.set_label("log10(pair count)", fontsize=6)
         ax.set_title(method, fontsize=9)
         ax.set_xlabel("high-D dist", fontsize=8); ax.set_ylabel("2-D dist", fontsize=8)
-    fig.suptitle(f"Shepard density (jet) — {dataset} (SNR={snr_label(snr)}); dashed = p=5 near-band",
+    fig.suptitle(f"Shepard density (jet) — {dataset} (SNR={snr_label(snr)}); dashed = first-mode near-band boundary",
                  fontsize=11)
     out = Path(out_dir) / f"shepard_scatter_snr{snr_label(snr)}.png"
     fig.tight_layout(); fig.savefig(out, dpi=130); plt.close(fig)
@@ -205,40 +208,6 @@ def outlier_gallery(embeddings, labels, outlier_idx, dataset, snr, out_dir, outl
     return out
 
 
-def dynamic_range_curve(agg_sweep, methods, out_dir):
-    """Near-band p5 (and global full) Shepard ρ vs dynamic range, one line/method.
-
-    ``agg_sweep`` has columns method, dynamic_range, metric, median, ci_lo, ci_hi. Left panel: p5
-    (within-cluster near structure); right panel: full (global), one curve per method.
-    """
-    panels = [("shepard_p5__vs_ambient", "near-band Shepard ρ @ p=5  (within-cluster fine structure)"),
-              ("full_shepard", "global Shepard ρ  (full)")]
-    fig, axes = plt.subplots(1, 2, figsize=(13, 5), sharex=True)
-    for ax, (metric, title) in zip(axes, panels):
-        any_line = False
-        for method in methods:
-            r = agg_sweep[(agg_sweep.method == method) & (agg_sweep.metric == metric)]
-            r = r.sort_values("dynamic_range")
-            if not len(r):
-                continue
-            any_line = True
-            x = r["dynamic_range"].to_numpy()
-            ax.plot(x, r["median"], marker="o", label=method, color=_color(method))
-            ax.fill_between(x, r["ci_lo"], r["ci_hi"], alpha=0.15, color=_color(method))
-        ax.set_xscale("log")
-        ax.set_xlabel("dynamic range  (inter-cluster ÷ intra-cluster)")
-        ax.set_ylabel(title, fontsize=10)
-        ax.set_ylim(-0.05, 1.0)
-        ax.grid(alpha=0.3, which="both")
-        if any_line:
-            ax.legend(fontsize=8, ncol=2)
-    fig.suptitle("Dynamic-range sweep (clusters, clean): near vs global Shepard ρ per method",
-                 fontsize=12)
-    out = Path(out_dir) / "dynamic_range_curve.png"
-    fig.tight_layout(); fig.savefig(out, dpi=130); plt.close(fig)
-    return out
-
-
 def dims_grid(grid, labels, methods, dims, out_dir, fname="dims_grid.png"):
     """Notebook-style grid: rows = methods, cols = total dimensionality, colored by cluster label.
 
@@ -315,6 +284,220 @@ def dimension_curve(agg_dims, methods, out_dir,
             ax.legend(fontsize=8, ncol=2)
     fig.suptitle("Curse of dimensionality (noise-dims): cluster survival vs total dimensionality",
                  fontsize=12)
+    out = Path(out_dir) / "dimension_curve.png"
+    fig.tight_layout(); fig.savefig(out, dpi=130); plt.close(fig)
+    return out
+
+
+def trajectory_gallery(embeddings, color_value, series, npoints, out_dir,
+                       fname="trajectory_gallery.png"):
+    """Multi-series random-walk maps, colored by concatenated time.
+
+    One square panel per method; points colored by the global time gradient (viridis), so each
+    series occupies a distinct color range; each series' end point is marked. Read against the
+    two defining properties: the saw-tooth LOCAL jitter along each trajectory, and the GLOBAL
+    radial separation of the series.
+    """
+    methods = list(embeddings)
+    ncol = min(4, len(methods)); nrow = int(np.ceil(len(methods) / ncol))
+    fig, axes = plt.subplots(nrow, ncol, figsize=(3.6 * ncol, 3.6 * nrow), squeeze=False)
+    for ax in axes.flat:
+        ax.axis("off")
+    n_series = int(np.max(series)) + 1
+    sc = None
+    for i, method in enumerate(methods):
+        ax = axes.flat[i]; ax.axis("on")
+        Y = embeddings[method]
+        sc = ax.scatter(Y[:, 0], Y[:, 1], c=color_value, s=2, cmap="viridis", linewidths=0)
+        for k in range(n_series):                       # mark each series' end point
+            e = (k + 1) * npoints - 1
+            ax.scatter([Y[e, 0]], [Y[e, 1]], s=42, marker="s", facecolor="none",
+                       edgecolor="k", linewidth=1.0, zorder=3)
+        _square_equal_axes(ax, Y)
+        ax.set_title(method, fontsize=9); ax.set_xticks([]); ax.set_yticks([])
+    if sc is not None:
+        fig.colorbar(sc, ax=axes.ravel().tolist(), shrink=0.6,
+                     label="time (concatenated series; squares = series end points)")
+    fig.suptitle(f"Multi-series high-D random walks — {n_series} series, "
+                 f"{npoints} steps each, colored by time", fontsize=11)
+    out = Path(out_dir) / fname
+    fig.savefig(out, dpi=130, bbox_inches="tight"); plt.close(fig)
+    return out
+
+
+def random_walk_geometry(ndim, npoints, n_series, step, seed, out_dir,
+                         fname="geometry_explainer.png"):
+    """Empirical explainer of the TRUE geometry of multi-series high-D random walks.
+
+    Every panel is MEASURED from the actual generator output (no schematic drawings):
+    (1) the same walk recipe in D=2 — the intuition trap: walks meander, recross, overlap;
+    (2) distance from the origin vs time in D=ndim — monotone ~sqrt(t) radial escape
+        (D=2 shown in grey for contrast: it wanders around the theory curve);
+    (3) angles: successive steps within a series, and positions of different series, both
+        concentrate at 90 deg in D=ndim (broad in D=2) — zigzag locally, orthogonal globally;
+    (4) cross-series distances match the Pythagorean prediction sqrt(r_i^2 + r_j^2) exactly —
+        the series radiate along mutually orthogonal directions and never approach each other.
+    Together: the true shape is a star of jagged spokes, mutually orthogonal, radiating from
+    the shared origin.
+    """
+    from synth.random_walk import make_random_walks
+
+    hi = make_random_walks(ndim=ndim, npoints=npoints, n_series=n_series, step=step, seed=seed)
+    lo = make_random_walks(ndim=2, npoints=npoints, n_series=n_series, step=step, seed=seed)
+    cmap = plt.get_cmap("tab10")
+
+    def walk(base, s):
+        return base["clean"][s * npoints:(s + 1) * npoints]
+
+    def angles_deg(V, W):
+        c = (np.einsum("ij,ij->i", V, W)
+             / (np.linalg.norm(V, axis=1) * np.linalg.norm(W, axis=1)))
+        return np.degrees(np.arccos(np.clip(c, -1.0, 1.0)))
+
+    fig, axes = plt.subplots(2, 2, figsize=(11.6, 9.4))
+
+    # (1) the same recipe in D=2: meander, recross, overlap
+    ax = axes[0, 0]
+    for s in range(n_series):
+        W = walk(lo, s)
+        ax.plot(W[:, 0], W[:, 1], lw=0.7, color=cmap(s % 10))
+    ax.scatter([0], [0], marker="*", s=140, color="k", zorder=3, label="origin")
+    ax.set_aspect("equal"); ax.set_xticks([]); ax.set_yticks([])
+    ax.legend(loc="upper right", fontsize=8)
+    ax.set_title("(1) the SAME recipe in D=2 — the intuition trap:\n"
+                 "walks meander, recross, and overlap each other", fontsize=10)
+
+    # (2) radial escape: ||x_t|| grows as sqrt(t) in high D
+    ax = axes[0, 1]
+    t = np.arange(1, npoints + 1)
+    for s in range(n_series):
+        r2 = np.linalg.norm(walk(lo, s), axis=1) / (step * np.sqrt(2.0 / 3.0))
+        ax.plot(t, r2, lw=0.7, color="0.78", zorder=1)
+    for s in range(n_series):
+        r = np.linalg.norm(walk(hi, s), axis=1) / (step * np.sqrt(ndim / 3.0))
+        ax.plot(t, r, lw=0.9, color=cmap(s % 10), zorder=2)
+    ax.plot(t, np.sqrt(t), "k--", lw=1.5, zorder=3,
+            label=r"theory  $\sqrt{t}$   ($\|x_t\| \approx s\sqrt{tD/3}$)")
+    ax.set_xlabel("time step  t")
+    ax.set_ylabel(r"distance from origin  /  $s\sqrt{D/3}$")
+    ax.grid(alpha=0.3); ax.legend(loc="upper left", fontsize=8)
+    ax.set_title(f"(2) D={ndim}: monotone radial escape — each series (colors)\n"
+                 "hugs the √t law; the D=2 walks (grey) wander around it", fontsize=10)
+
+    # (3) direction statistics: everything is ~orthogonal in high D
+    ax = axes[1, 0]
+    def step_angles(base):
+        out = []
+        for s in range(n_series):
+            st = np.diff(walk(base, s), axis=0)
+            out.append(angles_deg(st[:-1], st[1:]))
+        return np.concatenate(out)
+    cross_pos = np.concatenate(
+        [angles_deg(walk(hi, i), walk(hi, j))
+         for i in range(n_series) for j in range(i + 1, n_series)])
+    bins = np.linspace(0, 180, 91)
+    ax.hist(step_angles(lo), bins=bins, density=True, histtype="step",
+            color="0.55", lw=1.2, label="successive steps, D=2 (broad)")
+    ax.hist(step_angles(hi), bins=bins, density=True, histtype="stepfilled",
+            color="#1f77b4", alpha=0.55, label=f"successive steps, D={ndim} (zigzag)")
+    ax.hist(cross_pos, bins=bins, density=True, histtype="stepfilled",
+            color="#d62728", alpha=0.45,
+            label=f"positions of two DIFFERENT series, D={ndim}")
+    ax.axvline(90, color="k", ls=":", lw=1)
+    ax.set_xlabel("angle between the two directions  (degrees)")
+    ax.set_ylabel("density")
+    ax.set_xlim(0, 180); ax.legend(fontsize=8)
+    ax.set_title(f"(3) D={ndim}: independent directions concentrate at 90°\n"
+                 "(spread ~1/√D) — jagged at every step, series mutually orthogonal",
+                 fontsize=10)
+
+    # (4) Pythagoras: cross-series distance = sqrt(r_i^2 + r_j^2)
+    ax = axes[1, 1]
+    X, series = hi["clean"], hi["series"]
+    rng = np.random.default_rng(12345)          # fixed: the figure is reproducible
+    a = rng.integers(0, len(X), 8000); b = rng.integers(0, len(X), 8000)
+    m = series[a] != series[b]
+    a, b = a[m], b[m]
+    d = np.linalg.norm(X[a] - X[b], axis=1)
+    pred = np.sqrt(np.linalg.norm(X[a], axis=1) ** 2 + np.linalg.norm(X[b], axis=1) ** 2)
+    ax.scatter(pred, d, s=3, alpha=0.2, color="#1f77b4", linewidths=0, rasterized=True)
+    lim = (0.0, float(max(pred.max(), d.max()) * 1.05))
+    ax.plot(lim, lim, "k--", lw=1.4, label="exact orthogonality:  $d=\\sqrt{r_i^2+r_j^2}$")
+    ax.set_xlim(*lim); ax.set_ylim(*lim); ax.set_aspect("equal")
+    ax.set_xlabel(r"Pythagorean prediction  $\sqrt{r_i^2+r_j^2}$")
+    ax.set_ylabel("actual cross-series distance")
+    ax.grid(alpha=0.3); ax.legend(fontsize=8, loc="upper left")
+    ax.set_title(f"(4) D={ndim}: cross-series distances are Pythagorean —\n"
+                 "the series NEVER approach each other (no overlap possible)", fontsize=10)
+
+    fig.suptitle("The true geometry of multi-series high-D random walks: jagged spokes, "
+                 "mutually orthogonal,\nradiating from the shared origin "
+                 f"(measured on the actual dataset — {n_series} series × {npoints} steps, "
+                 f"D={ndim})", fontsize=12)
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    out = Path(out_dir) / fname
+    fig.savefig(out, dpi=130); plt.close(fig)
+    return out
+
+
+def noise_dims_endpoint_curve(agg_dims, methods, ambient, out_dir, knn_key="knn_acc_k10",
+                              k=10, chance=1.0 / 3.0):
+    """Noise-dims cluster survival, two readings side by side.
+
+    Left  — absolute kNN label accuracy vs D (same semantics as :func:`dimension_curve`).
+    Right — the chance-corrected skill RATIO against the ambient raw-feature kNN baseline:
+            (acc_2D − chance) / (acc_ambient − chance). Ratio 1 = the 2-D map is exactly as
+            class-readable as kNN run directly on the raw D-dim features; >1 = the map reads
+            MORE class structure than the raw feature space itself; 0 = chance. The correction
+            matters: both accuracies approach chance (not 0) as D grows, so the RAW ratio of a
+            fully collapsed method drifts toward ~1 instead of 0. ``ambient`` is {dim: accuracy}.
+    """
+    from matplotlib.ticker import ScalarFormatter
+
+    fig, axes = plt.subplots(1, 2, figsize=(14.4, 5.4), sharex=True)
+    amb_x = np.array(sorted(ambient))
+    amb_y = np.array([ambient[d] for d in amb_x])
+    for ax, mode in zip(axes, ("abs", "ratio")):
+        for method in methods:
+            r = agg_dims[(agg_dims.method == method) & (agg_dims.metric == knn_key)]
+            r = r.sort_values("dim")
+            if not len(r):
+                continue
+            x = r["dim"].to_numpy()
+            med, lo, hi = (r[c].to_numpy() for c in ("median", "ci_lo", "ci_hi"))
+            if mode == "ratio":
+                denom = np.array([ambient[int(d)] for d in x]) - chance
+                med, lo, hi = ((v - chance) / denom for v in (med, lo, hi))
+            # toorPIA (both endpoints) solid and heavy -- the emphasized results; the generic
+            # methods recede to thin dashed lines
+            star = method.startswith("toorPIA")
+            ax.plot(x, med, marker="o", ms=5 if star else 3.5,
+                    lw=2.2 if "csvform" in method else (1.8 if star else 1.0),
+                    ls="-" if star else "--", label=method, color=_color(method))
+            ax.fill_between(x, lo, hi, alpha=0.15, color=_color(method))
+        if mode == "abs":
+            ax.plot(amb_x, amb_y, color="#999", lw=1.2, ls=":", marker=".",
+                    label="ambient (raw-feature kNN)")
+            ax.axhline(chance, color="#888", lw=1.0, ls="--")
+            ax.annotate(f"chance = {chance:.2f}", xy=(0.02, chance),
+                        xycoords=("axes fraction", "data"), fontsize=8, color="#888", va="bottom")
+            ax.set_ylabel(f"2-D kNN label accuracy (k={k})", fontsize=10)
+            ax.set_ylim(-0.05, 1.05)
+        else:
+            ax.axhline(1.0, color="#888", lw=1.0, ls="--")
+            ax.annotate("= raw-feature kNN", xy=(0.02, 1.0), xycoords=("axes fraction", "data"),
+                        fontsize=8, color="#888", va="bottom")
+            ax.axhline(0.0, color="#bbb", lw=0.8, ls=":")
+            ax.annotate("chance", xy=(0.02, 0.0), xycoords=("axes fraction", "data"),
+                        fontsize=8, color="#999", va="bottom")
+            ax.set_ylabel("above-chance skill ratio vs ambient raw-feature kNN", fontsize=10)
+        ax.set_xscale("log")
+        ax.xaxis.set_major_formatter(ScalarFormatter())
+        ax.set_xlabel("total dimensionality D, log10 axis  (3 signal + D-3 noise dims)")
+        ax.grid(alpha=0.3, which="both")
+        ax.legend(fontsize=7.5, ncol=2)
+    fig.suptitle("Curse of dimensionality (noise-dims): cluster survival, absolute and relative "
+                 "to kNN on the raw features", fontsize=12)
     out = Path(out_dir) / "dimension_curve.png"
     fig.tight_layout(); fig.savefig(out, dpi=130); plt.close(fig)
     return out
@@ -474,37 +657,8 @@ def sweep_outliers_curve(agg_sweep, methods, out_dir):
     return out
 
 
-def robustness_curve(agg_robust, methods, out_dir):
-    """Noise-robustness panel: near-band p5 vs intra-cluster-relative SNR (clusters at fixed dyn.range).
-
-    Shows whether the near-band ordering persists under realistic intra-cluster noise, not only at
-    SNR=∞. ``agg_robust`` columns: method, rel_snr, metric, median, ci_lo, ci_hi.
-    """
-    snrs = sorted(agg_robust["rel_snr"].unique(), key=lambda v: -(v if np.isfinite(v) else 1e18))
-    xpos = {s: i for i, s in enumerate(snrs)}
-    labels = ["∞" if not np.isfinite(s) else f"{s:g}" for s in snrs]
-    fig, ax = plt.subplots(figsize=(7, 5))
-    for method in methods:
-        r = agg_robust[(agg_robust.method == method)
-                       & (agg_robust.metric == "shepard_p5__vs_ambient")]
-        if not len(r):
-            continue
-        r = r.assign(_x=r["rel_snr"].map(xpos)).sort_values("_x")
-        ax.plot(r["_x"], r["median"], marker="o", label=method, color=_color(method))
-        ax.fill_between(r["_x"], r["ci_lo"], r["ci_hi"], alpha=0.15, color=_color(method))
-    ax.set_xticks(range(len(snrs))); ax.set_xticklabels(labels)
-    ax.set_xlabel("intra-cluster-relative SNR  (∞ = clean → noisier)")
-    ax.set_ylabel("near-band Shepard ρ @ p=5"); ax.set_ylim(-0.05, 1.0)
-    ax.grid(alpha=0.3); ax.legend(fontsize=8, ncol=2)
-    ax.set_title("Noise robustness (clusters, dynamic range ≈ 20): near band vs intra-cluster noise",
-                 fontsize=11)
-    out = Path(out_dir) / "robustness_curve.png"
-    fig.tight_layout(); fig.savefig(out, dpi=130); plt.close(fig)
-    return out
-
-
 def score_scatter(agg, dataset, snr, methods, out_dir):
-    """Per-method near-vs-global scatter: x = Shepard ρ @ p=5 (near), y = Shepard ρ full (global).
+    """Per-method near-vs-global scatter: x = Shepard ρ over the first-mode near band, y = full (global).
 
     A method in the top-right reproduces BOTH near-neighbor and global distance structure. Uses the
     median over seeds for each axis.
@@ -512,7 +666,7 @@ def score_scatter(agg, dataset, snr, methods, out_dir):
     pts = []
     for m in methods:
         rx = agg[(agg.dataset == dataset) & (agg.snr == snr) & (agg.method == m)
-                 & (agg.metric == "shepard_p5__vs_ambient")]
+                 & (agg.metric == "shepard_near__vs_ambient")]
         ry = agg[(agg.dataset == dataset) & (agg.snr == snr) & (agg.method == m)
                  & (agg.metric == "full_shepard")]
         if len(rx) and len(ry):
@@ -526,9 +680,9 @@ def score_scatter(agg, dataset, snr, methods, out_dir):
         ax.annotate(m, (x, y), textcoords="offset points", xytext=(7, 5), fontsize=9)
     ax.set_xlim(min(xs) - 0.06, max(xs) + 0.10)
     ax.set_ylim(min(ys) - 0.06, max(ys) + 0.06)
-    ax.set_xlabel("near-neighbor fidelity — Shepard ρ @ p=5 (fixed radius)")
+    ax.set_xlabel("near-neighbor fidelity — Shepard ρ, first-mode near band (fixed radius)")
     ax.set_ylabel("global fidelity — Shepard ρ (full)")
-    ax.set_title(f"near (p=5) vs global (full) — {dataset} (SNR={snr_label(snr)})\n"
+    ax.set_title(f"near (first-mode band) vs global (full) — {dataset} (SNR={snr_label(snr)})\n"
                  "top-right = near + global", fontsize=11)
     ax.grid(alpha=0.3)
     ax.annotate("better →", xy=(0.97, 0.02), xycoords="axes fraction", ha="right", fontsize=8,
@@ -616,7 +770,7 @@ def population_score_scatter(agg, dataset, snr, methods, out_dir):
 
 def summary_heatmap(agg, dataset, snr, methods, out_dir):
     """Heatmap methods x selected metrics (median values) for one (dataset, snr)."""
-    metrics = ["shepard_p5__vs_ambient", "full_shepard",
+    metrics = ["shepard_near__vs_ambient", "full_shepard",
                "recall_k15", "trust_k15", "cont_k15"]
     M = np.full((len(methods), len(metrics)), np.nan)
     for i, method in enumerate(methods):
@@ -657,21 +811,27 @@ _CUM = "#16407a"       # dark blue — cumulative curve
 def distance_distribution(X_ambient, dataset, snr, out_dir, cutoffs=DEFAULT_CUTOFFS):
     """Why the FULL Shepard ρ buries near-neighbor structure — the high-D pairwise-distance profile.
 
-    In high dimensions distances *concentrate*: almost every pair sits at a mid/far distance, and only
-    a thin sliver of pairs are genuinely 'near'. The full ρ (p=100) ranks ALL pairs together, so it is
-    dominated by that mid/far bulk and near-distance accuracy is averaged away. This motivates
-    restricting ρ to the near band (p=5).
+    In high dimensions distances *concentrate*: almost every pair sits at a mid/far distance, and
+    only the pairs inside the FIRST MODE of the distance profile are genuinely 'near' (on structured
+    data that mode is the within-structure pairs). The full ρ (p=100) ranks ALL pairs together, so it
+    is dominated by the mid/far bulk and near-distance accuracy is averaged away. This motivates
+    restricting ρ to the structure-adaptive near band: all pairs up to the density valley where the
+    first mode decays into the tail (``metrics.distances.first_mode_threshold``).
 
     Left  — histogram of all high-D pairwise distances (count) with the cumulative % overlaid (twin
-            axis) and the band cutoffs p=5..100 marked; the p≤5 near band is shaded green.
+            axis) and the percentile cutoffs p=5..100 as guides; the first-mode near band is shaded
+            green with its boundary (and the equivalent percentile) marked.
     Right — the SAME point as a counting/weighting argument: the full ρ averages over every pair, of
-            which only ~5% are near, so near pairs are out-voted and cannot move the global number.
+            which only the first-mode fraction is near, so near pairs are out-voted and cannot move
+            the global number.
     """
+    from metrics.distances import first_mode_threshold
     d_hd = condensed_distances(X_ambient)
     n_pairs = int(d_hd.size)
-    n_p5 = int(round(n_pairs * 0.05))
+    r_near, _fb = first_mode_threshold(d_hd)
+    near_pct = 100.0 * float(np.mean(d_hd <= r_near))
+    n_near = int(round(n_pairs * near_pct / 100.0))
     thr = band_thresholds(d_hd, cutoffs)              # {p: absolute distance threshold}
-    r5 = thr[5]
     mean_d = float(np.mean(d_hd))
 
     fig, (axL, axR) = plt.subplots(1, 2, figsize=(13.5, 5.2),
@@ -683,8 +843,9 @@ def distance_distribution(X_ambient, dataset, snr, out_dir, cutoffs=DEFAULT_CUTO
     width = edges[1] - edges[0]
     axL.bar(centers, counts, width=width, color=_BULK, edgecolor="white", linewidth=0.2,
             align="center", zorder=2)
-    axL.axvspan(float(edges[0]), r5, color=_NEAR, alpha=0.15, zorder=1,
-                label=f"near band (p≤5): dist ≤ {r5:.2f}")
+    axL.axvspan(float(edges[0]), r_near, color=_NEAR, alpha=0.15, zorder=1,
+                label=f"first-mode near band: dist ≤ {r_near:.2f} (= p{near_pct:.0f})")
+    axL.axvline(r_near, color="#0a5", lw=1.4, zorder=4)
     ymax = counts.max() * 1.18
     axL.set_ylim(0, ymax)
     for p in cutoffs:                                 # band-cutoff guide lines on the distance axis
@@ -701,7 +862,7 @@ def distance_distribution(X_ambient, dataset, snr, out_dir, cutoffs=DEFAULT_CUTO
     axc.plot(edges[1:], cum, color=_CUM, lw=2.0, zorder=5, label="cumulative % of pairs")
     axc.set_ylim(0, 100)
     axc.set_ylabel("cumulative % of pairs", color=_CUM)
-    axc.axhline(5, color=_NEAR, lw=0.8, ls="--", alpha=0.8)
+    axc.axhline(near_pct, color=_NEAR, lw=0.8, ls="--", alpha=0.8)
     h1, l1 = axL.get_legend_handles_labels()
     h2, l2 = axc.get_legend_handles_labels()
     axc.legend(h1 + h2, l1 + l2, loc="upper left", fontsize=8, framealpha=0.9)
@@ -709,16 +870,18 @@ def distance_distribution(X_ambient, dataset, snr, out_dir, cutoffs=DEFAULT_CUTO
                   f"the near band is a thin left tail", fontsize=10)
 
     # ---- Right: equal-weighting dilution — how many pairs each ρ averages over ----
-    axR.barh([1, 0], [n_pairs, n_p5], color=[_BULK, _NEAR], edgecolor="white", zorder=2)
+    axR.barh([1, 0], [n_pairs, n_near], color=[_BULK, _NEAR], edgecolor="white", zorder=2)
     axR.set_yticks([1, 0])
-    axR.set_yticklabels(["full ρ (p=100)\nranks ALL pairs", "near band (p≤5)\nnear pairs only"],
+    axR.set_yticklabels(["full ρ (p=100)\nranks ALL pairs",
+                         f"first-mode near band\n(p{near_pct:.0f}) near pairs only"],
                         fontsize=9)
     axR.set_xlabel("number of pairs the metric averages over")
-    for y, v in [(1, n_pairs), (0, n_p5)]:
+    for y, v in [(1, n_pairs), (0, n_near)]:
         axR.text(v + n_pairs * 0.01, y, f"{v:,}", va="center", ha="left", fontsize=9)
     axR.set_xlim(0, n_pairs * 1.18)
-    axR.set_title("full ρ is out-voted 19:1 — near errors are\naveraged away (≈5% of pairs)",
-                  fontsize=10)
+    ratio = (n_pairs - n_near) / max(n_near, 1)
+    axR.set_title(f"full ρ is out-voted {ratio:.0f}:1 — near errors are\naveraged away "
+                  f"(≈{near_pct:.0f}% of pairs)", fontsize=10)
     axR.grid(axis="x", alpha=0.25)
 
     fig.suptitle("Why the full (p=100) Shepard ρ hides near-neighbor fidelity", fontsize=12)

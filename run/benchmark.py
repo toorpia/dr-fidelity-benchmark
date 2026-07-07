@@ -85,7 +85,9 @@ def merge_with_existing(new_df: "pd.DataFrame", path: Path, key_cols) -> "pd.Dat
     """
     if new_df.empty or not path.exists():
         return new_df
-    old = pd.read_csv(path)
+    # round_trip: pandas' default float parser is off by 1 ulp on some values, which would
+    # perturb the kept (not re-run) rows on rewrite -- kept rows must survive byte-identically
+    old = pd.read_csv(path, float_precision="round_trip")
     reran = set(map(tuple, new_df[key_cols].drop_duplicates().itertuples(index=False)))
     keep = old[[t not in reran for t in old[key_cols].itertuples(index=False, name=None)]]
     return pd.concat([keep, new_df], ignore_index=True)
@@ -204,15 +206,20 @@ def main(argv=None):
                     print(f"  [warn] figure (scatter/embeddings) failed: {e}")
 
     # ---- aggregate + persist (merging into existing tables so partial runs don't clobber) ----
+    # method-aware merge key: a method-subset re-run (e.g. ``--methods toorPIA``) replaces only
+    # that method's rows and keeps every other method verbatim. Keyed WITHOUT seed: seeds always
+    # run from 0, so a re-run owns all of a method's rows -- this also purges stale seeds when a
+    # method's seed structure changes (e.g. a stochastic method becoming deterministic)
     per_run = merge_with_existing(pd.DataFrame(per_run_rows), out_dir / "metrics_per_run.csv",
-                                  key_cols=["dataset", "snr"])
+                                  key_cols=["dataset", "snr", "method"])
     per_run.to_csv(out_dir / "metrics_per_run.csv", index=False)
     agg = aggregate.aggregate_runs(per_run, n_boot=args.bootstrap)
     agg.to_csv(out_dir / "metrics_aggregated.csv", index=False)
     if stability_frames:
         stab = pd.concat(stability_frames, ignore_index=True).drop_duplicates(
             subset=["dataset", "snr", "method"], keep="last")
-        stab = merge_with_existing(stab, out_dir / "stability.csv", key_cols=["dataset", "snr"])
+        stab = merge_with_existing(stab, out_dir / "stability.csv",
+                                   key_cols=["dataset", "snr", "method"])
         stab.to_csv(out_dir / "stability.csv", index=False)
 
     # curve + heatmap figures from the aggregated table

@@ -25,4 +25,4 @@ openTSNE==1.0.4
 pytest>=7.0
 
 # toorPIA API client (optional; install from git). Requires TOORPIA_API_KEY to call the API.
-# pip install git+https://github.com/toorpia/toorpia.git   # ==1.1.1
+# pip install git+https://github.com/toorpia/toorpia.git   # ==1.2.0 (basemap_embedding required)

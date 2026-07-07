@@ -53,7 +53,7 @@ def test_toorpia_skips_without_cache_or_key(data):
 def test_toorpia_loads_cache_without_api(data):
     root = tempfile.mkdtemp()
     fake = np.random.default_rng(5).normal(size=(data.shape[0], 2))
-    save_external(fake, root, "density", "toorpia", "fit", "n80_d12_snrinf", 0)
+    save_external(fake, root, "density", "toorpia", "embedding", "n80_d12_snrinf", 0)
     os.environ["TOORPIA_API_KEY"] = "dummy-should-not-be-used"
     ctx = {"root": root, "dataset": "density", "snr": float("inf"), "tag": "n80_d12_snrinf"}
     Y = get_method("toorPIA").embed(data, seed=0, device="cpu", context=ctx)

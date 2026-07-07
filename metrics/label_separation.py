@@ -1,6 +1,6 @@
 """Label-separation metrics on the 2-D embedding: are the labeled clusters still distinct?
 
-``cluster_scale_metrics`` measures within/between SCALE (over-compression); these measure MIXING --
+``tight_cluster_metrics`` measures SCALE (over-compression of the tightest cluster); these measure MIXING --
 whether points of different labels remain separable in the 2-D map, which is the visual question of
 the curse-of-dimensionality (noise-dims) experiment. Chance level for leave-one-out kNN accuracy
 with K balanced classes is 1/K.

@@ -24,10 +24,12 @@ UMAP has a (seeded) ``transform``; toorPIA has a server-side ``addplot`` on the 
 operation -- reported as ``supported=False`` rows rather than silently dropped (for monitoring
 that is itself the finding: adding data means re-fitting, and a re-fit re-arranges the map).
 
-toorPIA honest note: ``addplot`` uses the server-side state of the fit in the SAME session, so the
-test performs a live ``fit_transform`` + ``addplot`` per seed, committed as a self-consistent
-cache pair (``basemap_fit``/``basemap_add``); the benchmark's fit cache holds no server state and
-the server is not bit-deterministic across sessions.
+toorPIA honest note: ``addplot_embedding`` targets the server-side state of the basemap, so the
+test performs a live ``basemap_embedding(l2_normalization=False)`` + per-row ``addplot_embedding``
+in one session, committed as a self-consistent cache pair
+(``embedding_basemap``/``embedding_addplot``). The addplot inherits the basemap's preprocessing
+server-side, so basemap and added points are guaranteed to be processed identically; the
+embedding endpoint is deterministic, so toorPIA runs once (no seed dimension).
 
     python run/addplot_test.py --seeds 3 --dim 768 --n 1000 --snr 1
 """
@@ -61,7 +63,7 @@ UNSUPPORTED = {"t-SNE": "sklearn TSNE has no out-of-sample transform",
                "PCC": "pccdr optimizes fit coordinates; no transform"}
 SUMMARY_METRICS = ["anomaly_radius_ratio_med", "anomaly_radius_ratio_min", "attribution_accuracy",
                    "angle_to_own_med", "pair_angle_med", "add_bulk_radius_ratio"]
-CACHE_MODES = ("basemap_fit", "basemap_add")
+CACHE_MODES = ("embedding_basemap", "embedding_addplot")
 
 
 def _direction_angles(Y_bulk, labs_b, points, center):
@@ -124,7 +126,8 @@ def embed_pair(method, seed, Xf, Xa, tag):
         import umap
         mdl = umap.UMAP(n_neighbors=15, min_dist=0.1, random_state=seed).fit(Xf)
         return np.asarray(mdl.embedding_, float), np.asarray(mdl.transform(Xa), float)
-    # toorPIA: live fit + addplot in one session (cache-first, self-consistent pair)
+    # toorPIA: live basemap_embedding + addplot_embedding in one session (cache-first,
+    # self-consistent pair; the addplot inherits the basemap's preprocessing server-side)
     fit_mode, add_mode = CACHE_MODES
     Yf = load_external(ROOT, "outliers", "toorpia", fit_mode, tag, seed)
     Ya = load_external(ROOT, "outliers", "toorpia", add_mode, tag, seed)
@@ -133,14 +136,13 @@ def embed_pair(method, seed, Xf, Xa, tag):
     if not os.environ.get("TOORPIA_API_KEY"):
         return None
     from toorpia import toorPIA
-    cols = [f"d{i}" for i in range(Xf.shape[1])]
     client = toorPIA()
-    Yf = _coords_from_result(client.fit_transform(pd.DataFrame(Xf, columns=cols), label=None,
-                                                  random_seed=int(seed),
-                                                  vector_normalization=False))
+    Yf = _coords_from_result(client.basemap_embedding(
+        np.ascontiguousarray(Xf, dtype=np.float64), l2_normalization=False))
     # addplot one row per call — the monitoring semantics: points arrive one at a time
-    Ya = np.vstack([_coords_from_result(client.addplot(pd.DataFrame(Xa[i:i + 1], columns=cols)))
-                    for i in range(len(Xa))])
+    Ya = np.vstack([_coords_from_result(client.addplot_embedding(
+        np.ascontiguousarray(Xa[i:i + 1], dtype=np.float64)))
+        for i in range(len(Xa))])
     save_external(Yf, ROOT, "outliers", "toorpia", fit_mode, tag, seed)
     save_external(Ya, ROOT, "outliers", "toorpia", add_mode, tag, seed)
     return Yf, Ya
@@ -188,7 +190,7 @@ def main(argv=None):
             rows.append(dict(method=method, seed=0, supported=False, note=UNSUPPORTED[method]))
             print(f"{method:9s} unsupported: {UNSUPPORTED[method]}")
             continue
-        seeds = range(args.seeds) if method in ("UMAP", "toorPIA") else [0]
+        seeds = range(args.seeds) if method == "UMAP" else [0]
         for seed in seeds:
             res = embed_pair(method, seed, Xf_B, Xa, tag)
             if res is None:

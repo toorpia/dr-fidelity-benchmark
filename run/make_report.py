@@ -36,17 +36,17 @@ METHOD_ORDER = ["PCA", "Isomap", "PyMDE", "PCC", "t-SNE", "UMAP", "toorPIA"]
 # Each entry: (metric key, header, direction) with direction True = higher is better,
 # False = lower is better, "one" = closest to 1 is best, "zero" = closest to 0 is best.
 TABLE_GROUPS = [
-    ("rank", "Ranking score (1st→5 … 5th→1 pts)", [
+    ("rank", "Distance-fidelity ranking (scores the ρ columns only; 1st→5 … 5th→1 pts)", [
         ("__pts_full", "full pts", True),
-        ("__pts_p5", "p5 pts", True),
+        ("__pts_near", "near pts", True),
         ("__pts_total", "Σ", True),
     ]),
     ("primary", "Band-Shepard ρ — fixed-radius, fair (PRIMARY)", [
         ("full_shepard", "full · global", True),
-        ("shepard_p5__vs_ambient", "p5 · near-neighbor", True),
+        ("shepard_near__vs_ambient", "near · first-mode band", True),
     ]),
-    ("crush", "Within-cluster scale  (×over-compression; ≫1 = clusters crushed to points)", [
-        ("cluster_over_compression", "over-compression ×", False),
+    ("crush", "Tightest-cluster scale  (× vs overall spread; ≫1 = crushed to a point, ≪1 = inflated)", [
+        ("tight_over_compression", "tight-cluster scale ×", "one"),
     ]),
     ("ref", "Reference — k-NN-favorable, biased (not a fair neighborhood test)", [
         ("recall_k15", "recall@15", True),
@@ -54,13 +54,13 @@ TABLE_GROUPS = [
         ("cont_k15", "continuity@15", True),
     ]),
 ]
-# metrics scored for the composite ranking: full Shepard ρ and near-band p5 Shepard ρ.
+# metrics scored for the composite ranking: full Shepard ρ and the first-mode near-band ρ.
 # On the outliers dataset a third key is scored the same way (1st→5 … 5th→1): the standard Shepard
 # ρ restricted to the ANOMALY-INVOLVING pairs — the direct quantification of the outlier-related
 # blocks of the Shepard density figure. A method that plots the anomalies among other clusters,
 # fuses same-kind pairs, or tears them apart scrambles exactly these pairs and scores low there no
 # matter how well it orders the pairs among the normal points — so local readings can never outrank the baseline.
-RANK_KEYS = [("shepard_p5__vs_ambient", "__pts_p5"), ("full_shepard", "__pts_full")]
+RANK_KEYS = [("shepard_near__vs_ambient", "__pts_near"), ("full_shepard", "__pts_full")]
 OUTLIER_RANK_KEY = ("outlier_shepard__vs_ambient", "__pts_out")
 
 # Extra column group shown only for the outliers dataset: the outlier-pair Shepard ρ that feeds
@@ -69,17 +69,14 @@ OUTLIER_GROUP = ("osp", "Outlier pairs — standard Shepard ρ over anomaly-invo
     ("outlier_shepard__vs_ambient", "outlier ρ", True),
 ])
 
-# The populations dataset's table keeps the standard column groups (global + local Shepard bands);
-# the membership-restricted ρ family (majority-internal / minority-internal / cross-population)
-# lives in the sweep curve figure and the results CSVs, not as extra table columns.
-
 
 def _badness(v, mode):
     """Distance from the ideal value for 'one' / 'zero' direction modes (smaller = better)."""
     if v is None:
         return float("inf")
     if mode == "one":
-        return np.log2(v) if v >= 1 else float("inf")
+        # symmetric in ratio terms: 0.5x and 2x are equally far from the ideal 1
+        return abs(np.log2(v)) if v > 0 else float("inf")
     return abs(v)                                   # mode == "zero"
 
 DATASET_BLURB = {
@@ -89,8 +86,8 @@ DATASET_BLURB = {
     "density": "Non-uniform density (uniform + tight core + sparse shell). Tests density distortion "
                "and the recall@k bias; distance-preservers should win the global/near Shepard bands.",
     "transition": "Continuous transition: dense clusters CONNECTED by bridge regions. The bridges (plus "
-                  "SNR=1 noise) dilute the within-cluster over-compression here — PCC's clusters are "
-                  "squeezed but not to points (≈79× when clean, milder under noise). Included to show "
+                  "SNR=1 noise) dilute the tightest-cluster over-compression here — PCC's clusters are "
+                  "squeezed but not to points (≈2× under the canonical noise). Included to show "
                   "the effect is weaker when clusters are connected; toorPIA still preserves scale and "
                   "leads the global ρ.",
     "outliers": "Bulk of dense clusters plus 3 anomalous DIRECTIONS × 2 near-duplicate outliers "
@@ -166,7 +163,7 @@ def fmt(c):
 
 
 def ranking_points(agg, dataset, snr, methods):
-    """Composite ranking points: for full Shepard ρ AND near-band p5 Shepard ρ — plus, on the
+    """Composite ranking points: for full Shepard ρ AND the first-mode near-band ρ — plus, on the
     outliers dataset, the anomaly-pair Shepard ρ — the 1st..5th method gets 5,4,3,2,1 points
     (others 0); the total is their sum. Returns ``{method: {__pts_*: int}}``."""
     rank_keys = list(RANK_KEYS) + ([OUTLIER_RANK_KEY] if dataset == "outliers" else [])
@@ -219,6 +216,9 @@ def ranking_table(agg, dataset, snr):
                 best[k], worst[k] = max(vs), min(vs)
             else:
                 best[k], worst[k] = min(vs), max(vs)
+    # the tightest-cluster column shows only the closest-to-1 highlight (light green) and the
+    # >5x crush flag; everything else in it stays uncolored
+    worst.pop("tight_over_compression", None)
 
     # order rows by composite total (desc), tie-break by full Shepard ρ (desc)
     def order_key(m):
@@ -241,18 +241,26 @@ def ranking_table(agg, dataset, snr):
             for k, _, _ in items:
                 n = numeric[m][k]
                 cls = []
-                # absolute-threshold reds (regardless of rank): a negative near-band p5 ρ, an
-                # over-compression above 2×, or a negative anomaly-pair ρ.
+                # absolute-threshold reds (regardless of rank): a negative near-band ρ, a
+                # negative anomaly-pair ρ, or THE WORST tightest-cluster crush of the table when
+                # it exceeds 5x -- crushing destroys information (it cannot be read back), so only
+                # an unambiguous crush-side worst case earns the failure flag; inflation and
+                # moderate crush stay uncolored (only closest-to-1 is highlighted).
+                col_max = max((numeric[mm]["tight_over_compression"]
+                               for mm in methods
+                               if numeric[mm].get("tight_over_compression") is not None),
+                              default=None) if k == "tight_over_compression" else None
                 force_red = n is not None and (
-                    (k == "shepard_p5__vs_ambient" and n < 0)
-                    or (k == "cluster_over_compression" and n > 2)
+                    (k == "shepard_near__vs_ambient" and n < 0)
+                    or (k == "tight_over_compression" and col_max is not None
+                        and n == col_max and n > 5)
                     or (k == "outlier_shepard__vs_ambient" and n < 0))
                 if force_red:
                     cls.append("crit")          # darker red than rank-worst — an outright failure
                 elif n is not None and k in best:
                     if n == best[k]:
                         cls.append("best")
-                    elif n == worst[k]:
+                    elif k in worst and n == worst[k]:
                         cls.append("worst")
                 if kind == "ref":
                     cls.append("refcol")
@@ -311,21 +319,39 @@ def figure_block(dataset, snr, embed):
     lab = snr_label(snr)
     figs = [
         (f"distance_distribution_snr{lab}.png",
-         "High-D pairwise-distance profile — why the near band (p≤5) is a thin slice the full ρ buries"),
-        (f"score_scatter_snr{lab}.png", "Near (p=5) vs global (full) Shepard ρ — top-right captures both"),
+         "High-D pairwise-distance profile — why the near band (the profile's first mode) is a slice the full ρ buries"),
+        (f"score_scatter_snr{lab}.png", "Near (first-mode band) vs global (full) Shepard ρ — top-right captures both"),
         (f"shepard_scatter_snr{lab}.png", "Shepard density (jet, log counts) — high-D vs 2-D distance"),
         (f"summary_heatmap_snr{lab}.png", "Summary heatmap (methods × metrics, median)"),
         (f"embeddings_snr{lab}.png", "2-D embeddings colored by the dataset variable"),
     ]
+    if dataset == "transition":
+        figs[4] = (f"embeddings_snr{lab}.png",
+                   "2-D embeddings colored by the cyclic continuum t. The dataset's defining "
+                   "geometry has two features at once: seven DENSE typical-state clusters, and "
+                   "their CLOSED ring connectivity (state 0 → 1 → … → 6 → 0 through bridges). "
+                   "Read the gallery against both: toorPIA is the only method that reproduces "
+                   "both simultaneously — seven distinct dense lobes arranged in the correct "
+                   "cyclic order with the bridge points between adjacent states. The others "
+                   "each recover at most one feature: Isomap draws the cleanest closed ring but "
+                   "smears the dense clusters along it; PCA keeps the cyclic order in a ragged "
+                   "ring with blurred, overlapping clusters; t-SNE and UMAP recover dense "
+                   "clusters but tear the connecting bridges, fragmenting the loop; PCC draws "
+                   "the seven states as radial spokes fused at a central hub, so every state "
+                   "becomes adjacent to every other and the cyclic adjacency is lost. This "
+                   "qualitative reading sits alongside the quantitative table below: toorPIA "
+                   "holds the best global ρ here (0.729) while its first-mode near ρ trails "
+                   "(6th), which is what drops it to 3rd in the composite")
     if dataset == "populations":
         figs = [
             (f"population_gallery_snr{lab}.png",
              "Embedding gallery at the canonical 95% vs 5% — circles = majority population, "
              "triangles = minority population, colored by cluster (0-4 majority, 5-9 minority). "
-             "PCA draws the minority as a correctly placed featureless blob, PCC buries it among "
-             "the majority's clusters, t-SNE/UMAP keep its clusters but scatter them (no "
-             "two-population structure), toorPIA keeps it a recognizable group with internal "
-             "structure"),
+             "PCA draws the minority as a correctly placed featureless blob, "
+             "PCC strings it out on an arc around the majority "
+             "(placement rank-uninformative, cross ρ 0.20), t-SNE fuses its five clusters into "
+             "one tiny clump set apart, UMAP scatters them as islands along the map edge, "
+             "toorPIA keeps it a recognizable group with internal structure"),
             ("populations_sweep_curve.png",
              "Sweep vs minority fraction (SNR=1, CI bands): global Shepard ρ and the "
              "minority-pair-restricted ρ"),
@@ -346,7 +372,7 @@ def figure_block(dataset, snr, embed):
              "anomalies faithfully INCLUDING the relations among them: each same-kind a/b pair "
              "lands adjacent and co-directional (pair angle ≤ 10°), the three kinds point to "
              "three separate directions well away from the bulk, and the bulk's 5-cluster layout "
-             "is kept — the picture behind its outlier ρ 0.254 (1st) and global ρ 0.755 (1st). "
+             "is kept — the picture behind its outlier ρ 0.615 (1st) and global ρ 0.759 (1st). "
              "PCA and Isomap drop the anomalies onto the bulk clusters; PyMDE tears same-kind "
              "pairs to opposite ends of the map and fuses different kinds; PCC keeps the bulk "
              "clean but throws same-kind pair members to different corners (angles ≈ 86°); t-SNE "
@@ -364,10 +390,151 @@ def figure_block(dataset, snr, embed):
         # the outlier-pair ρ vs full ρ scatter is the anomaly-placement reading here; the plain
         # near-vs-global scatter adds nothing on this dataset
         figs = [f for f in figs if not f[0].startswith("score_scatter_")]
-    items = "".join(
-        f"<figure>{img(dataset, f, embed)}<figcaption>{html.escape(cap)}</figcaption></figure>"
-        for f, cap in figs)
-    return f"<div class='figgrid'>{items}</div>"
+    # the 2-D map gallery IS these methods' primary output, so it is returned separately and
+    # placed BEFORE the comparison table; the diagnostic figures follow the table
+    map_prefix = {"populations": "population_gallery_", "outliers": "outlier_gallery_"}.get(
+        dataset, "embeddings_")
+    map_figs = [f for f in figs if f[0].startswith(map_prefix)]
+    figs = [f for f in figs if not f[0].startswith(map_prefix)]
+
+    def render(fs):
+        return "".join(
+            f"<figure>{img(dataset, f, embed)}<figcaption>{html.escape(cap)}</figcaption></figure>"
+            for f, cap in fs)
+
+    map_html = f"<div class='figgrid mapfig'>{render(map_figs)}</div>" if map_figs else ""
+    return map_html, f"<div class='figgrid'>{render(figs)}</div>"
+
+
+def random_walk_section(embed: bool) -> str:
+    """The time-series dataset: multi-series high-D random walks (continuous change, no
+    clusters). Runs on exactly the main-benchmark footing (toorPIA through the same
+    basemap_embedding endpoint), so it is a main section. Rendered only when the probe's
+    output exists."""
+    p = ROOT / "results" / "random_walk_aggregated.csv"
+    if not p.exists():
+        return ""
+    agg = pd.read_csv(p)
+    COLS = [("full_shepard", "full · all pairs"),
+            ("cross_series_shepard", "cross-series · star arrangement (GLOBAL)"),
+            ("within_series_shepard", "within-series · trajectory shape"),
+            ("within_series_near_shepard", "within-series near |Δt|≤20 · step structure (LOCAL)")]
+
+    def cellv(m, k):
+        r = agg[(agg.method == m) & (agg.metric == k)]
+        if not len(r):
+            return None, "—"
+        c = (float(r["median"].iloc[0]), float(r["ci_lo"].iloc[0]),
+             float(r["ci_hi"].iloc[0]), int(r["n_runs"].iloc[0]))
+        return c[0], fmt(c)
+
+    methods = [m for m in METHOD_ORDER if (agg.method == m).any()]
+    numeric = {m: {k: cellv(m, k)[0] for k, _ in COLS} for m in methods}
+    best = {k: max(v[k] for v in numeric.values() if v[k] is not None) for k, _ in COLS}
+    worst = {k: min(v[k] for v in numeric.values() if v[k] is not None) for k, _ in COLS}
+    methods = sorted(methods, key=lambda m: -(numeric[m]["full_shepard"] or -1e9))
+
+    sub = "".join(f"<th class='sub-primary'>{html.escape(h)}</th>" for _, h in COLS)
+    head = (f"<tr><th class='method' rowspan='2'>method</th>"
+            f"<th class='grp grp-primary' colspan='{len(COLS)}'>Trajectory Shepard ρ — the "
+            f"standard statistic, pairs split by (series, time) membership</th></tr>"
+            f"<tr>{sub}</tr>")
+    body = []
+    for m in methods:
+        tds = []
+        for k, _ in COLS:
+            n, disp = cellv(m, k)
+            cls = (" class='best'" if n is not None and n == best[k]
+                   else " class='worst'" if n is not None and n == worst[k] else "")
+            tds.append(f"<td{cls}>{disp}</td>")
+        body.append(f"<tr><th class='method'>{html.escape(m)}</th>{''.join(tds)}</tr>")
+    table = (f"<table class='rank'><thead>{head}</thead><tbody>{''.join(body)}</tbody></table>")
+
+    return (
+        "<h2 id='random-walk'>time series — multi-series high-D random walks (continuous "
+        "change, no clusters)</h2>"
+        "<p class='blurb'>Theme: <b>trajectory rendering — the shape of multivariate "
+        "time-series data.</b> Six independent random walks in D=50 (each time step adds an "
+        "independent uniform displacement in every dimension; all series start at the origin) "
+        "are concatenated into one dataset of 6 × 500 = 3000 points and embedded together. "
+        "This is the regime that real multivariate monitoring data lives in — process sensors, "
+        "equipment logs, longitudinal measurements: <b>OPEN, filamentary trajectories indexed "
+        "by (series, time), with no clusters at all</b> — the structural opposite of the five "
+        "datasets above. All seven methods run on exactly the main-benchmark footing (toorPIA "
+        "through the same <code>basemap_embedding</code> endpoint).</p>"
+        "<p class='blurb'><b>What the data really looks like — read this before the maps.</b> "
+        "A random walk in D=50 does not look like the doodle that 2-D intuition suggests. "
+        "Because every next step is drawn with D fresh degrees of freedom, three geometric "
+        "facts hold with near-certainty — every panel of the figure below is <i>measured on "
+        "the actual dataset</i>, not drawn schematically. <b>(1) Radial escape:</b> the "
+        "distance from the origin grows as √t (‖x_t‖ ≈ step·√(tD/3)) — in high "
+        "dimensions the walk never wanders back; each series pushes steadily OUTWARD (panel 2; "
+        "compare the same recipe in D=2, panel 1, which meanders, recrosses itself, and "
+        "overlaps its neighbors). <b>(2) Zigzag at every step (local):</b> successive steps "
+        "are independent, and in high dimensions two independent directions are almost surely "
+        "near-orthogonal — the angle concentrates at 90° with spread ~1/√D ≈ a few degrees "
+        "(panel 3, blue) — so the trajectory is JAGGED at every single step and never smooths "
+        "into a curve. <b>(3) Mutually orthogonal series (global):</b> the same "
+        "near-orthogonality holds between the position vectors of different series (panel 3, "
+        "red), so the six walks radiate along mutually perpendicular directions and never "
+        "approach one another — every cross-series distance obeys the Pythagorean relation "
+        "d ≈ √(r_i² + r_j²) (panel 4). The true shape is therefore a "
+        "<b>star of six jagged spokes radiating from the shared origin at mutual right "
+        "angles</b>. Six mutually orthogonal directions cannot all be drawn at right angles "
+        "on paper — but a faithful 2-D map must still render what CAN be rendered: one shared "
+        "origin with the series fanning out separately (never crossing), monotone outward "
+        "time order along each spoke, and the saw-tooth jitter on top of every spoke.</p>"
+        + figure_one("random_walk", "geometry_explainer.png",
+                     "The geometric ground truth, measured on the actual dataset. (1) The same "
+                     "walk recipe in D=2 — the intuition trap: walks meander, recross, and "
+                     "overlap. (2) In D=50 the distance from the origin hugs the √t law "
+                     "(colored series; grey = the D=2 walks wandering around it): monotone "
+                     "radial escape. (3) Angles between successive steps (blue) and between "
+                     "positions of different series (red) both concentrate at 90° in D=50, "
+                     "while in D=2 they are spread over everything (grey): the walk is jagged "
+                     "at every step, and the series are mutually orthogonal. (4) Cross-series "
+                     "distances match the Pythagorean prediction √(r_i²+r_j²): the series "
+                     "never approach each other.", embed)
+        + "<div class='figgrid mapfig'><figure>"
+        + img("random_walk", "trajectory_gallery.png", embed)
+        + "<figcaption>2-D maps, points colored by time (dark = early, yellow = late; squares "
+        "= series end points). Read against the three facts above. toorPIA renders the full "
+        "truth — six jagged spokes radiating separately from one shared origin with clean "
+        "outward time order (the picture behind its leading within-series 0.970 / "
+        "cross-series 0.897 / full 0.924 ρ). PCA and PyMDE keep the radial fan but tangle it "
+        "near the origin (PyMDE also scatters fragments of one series). PCC draws a clean "
+        "six-spoke star but STRAIGHTENS the spokes — the saw-tooth jitter is visibly smoothed "
+        "away (its step-structure ρ 0.470 is the lowest of all seven) — and throws a detached "
+        "patch of one series across the map. Isomap collapses each walk to a nearly straight "
+        "ray. t-SNE and UMAP cut the walks into smooth, disconnected ribbons scattered over "
+        "the canvas: the time order along each fragment is beautifully preserved — they lead "
+        "the step-structure column (0.951 / 0.885), a rank statistic that smoothing does not "
+        "hurt — but the shared origin and the radial arrangement are gone (cross-series ρ "
+        "0.366 / 0.477, the two lowest), and the jitter amplitude, which the rank statistic "
+        "cannot see, is erased from the picture.</figcaption></figure></div>"
+        + table +
+        "<p class='note'><b>Honest notes.</b> (1) <b>Same footing as the five datasets "
+        "above:</b> toorPIA runs through the identical deterministic "
+        "<code>basemap_embedding(l2_normalization=False)</code> endpoint (coordinates "
+        "committed under <code>external_embeddings/random_walk/</code> — offline replay, no "
+        "API key needed); stochastic methods use R=3 seeds and brackets are bootstrap 95% "
+        "CIs. (2) <b>Parameters:</b> D=50, 6 series × 500 steps, and NO added noise: the "
+        "walk's own randomness IS the data, and the walk is generated directly in the ambient "
+        "space, so the ground truth is the ambient geometry itself (vs-truth ≡ vs-ambient) — "
+        "there is no separate latent space or SNR knob to harmonize with the main grid. D=50 "
+        "already places the geometry deep in the high-dimensional regime (the angle spread "
+        "around 90° is ~1/√D ≈ 8°); raising D only tightens the concentration. (3) "
+        "<b>Columns:</b> the standard Spearman ρ with the pair set selected by (series, time) "
+        "membership — the same construction as the outlier ρ and the minority-pair ρ: "
+        "<i>within-series</i> = both endpoints in the same series; <i>within-series near</i> "
+        "= same series and |Δt| ≤ 20 steps (the step-level saw-tooth; the time-lag window "
+        "replaces the distance-percentile near band because here \"local\" is defined by "
+        "time, not by a mode of the distance profile); <i>cross-series</i> = endpoints in "
+        "different series (the star arrangement); <i>full</i> = all pairs. (4) No composite "
+        "ranking points on this table — the split columns are the reading (rows are ordered "
+        "by the full ρ; best per column green, worst light red as everywhere). (5) "
+        "<b>Reproduce:</b> <code>python run/timeseries_probe.py</code> (defaults: "
+        "<code>--ndim 50 --npoints 500 --n-series 6 --lag 20 --seeds 3</code>).</p>")
 
 
 def noise_dims_section(embed: bool) -> str:
@@ -377,9 +544,17 @@ def noise_dims_section(embed: bool) -> str:
     p = ROOT / "results" / "dimsweep_aggregated.csv"
     if not p.exists():
         return ""
-    agg = pd.read_csv(p)
+    agg = pd.read_csv(p).replace({"method": {"toorPIA": "toorPIA (basemap_csvform)"}})
+    emb_p = ROOT / "results" / "dimsweep_embedding_aggregated.csv"
+    if emb_p.exists():
+        emb = pd.read_csv(emb_p).replace(
+            {"method": {"toorPIA-embedding": "toorPIA (basemap_embedding)"}})
+        agg = pd.concat([agg, emb], ignore_index=True)
+    row_order = ([m for m in METHOD_ORDER if m != "toorPIA"]
+                 + ["toorPIA (basemap_embedding)", "toorPIA (basemap_csvform)"])
     dims_avail = sorted(int(d) for d in agg["dim"].unique())
-    landmark = [d for d in (6, 40, 80, 200, 768, 1500, 2000) if d in dims_avail] or dims_avail[:5]
+    landmark = [d for d in (6, 40, 80, 200, 250, 300, 768, 1500, 2000)
+                if d in dims_avail] or dims_avail[:5]
     knn_keys = sorted({str(m) for m in agg["metric"].unique() if str(m).startswith("knn_acc_k")})
     if not knn_keys:
         return ""
@@ -399,7 +574,7 @@ def noise_dims_section(embed: bool) -> str:
                   for _, t in groups)
     sub = "".join("".join(f"<th class='sub-primary'>D={d}</th>" for d in landmark) for _ in groups)
     body = []
-    for m in METHOD_ORDER:
+    for m in row_order:
         if not len(agg[agg.method == m]):
             continue
         tds = "".join(cell(m, d, k) for k, _ in groups for d in landmark)
@@ -411,39 +586,93 @@ def noise_dims_section(embed: bool) -> str:
     return (
         "<h2 id='noise-dims'>Supplement — noise-dims dimension sweep (when dimensionality itself "
         "is the noise)</h2>"
-        "<p class='blurb'><b>Two noise regimes.</b> The five datasets above share one deliberately "
+        "<p class='blurb'><b>Why this supplement exists.</b> It makes a two-stage point about "
+        "toorPIA under noise dimensions. <b>Stage 1:</b> on the same footing as the main "
+        "benchmark — the raw-geometry <code>basemap_embedding</code> endpoint — toorPIA already "
+        "tolerates noise dimensions better than every generic method. <b>Stage 2:</b> toorPIA "
+        "additionally ships <code>basemap_csvform</code>, its <b>default endpoint for CSV/tabular "
+        "data analysis</b> (a distinct pipeline with per-item preprocessing), and that endpoint "
+        "shows an extraordinary tolerance to noise dimensions — it is essentially indifferent to "
+        "them out to hundreds of pure-noise columns. This second point is what a practitioner "
+        "needs for real tabular data, where irrelevant columns are numerous and their number is "
+        "unknown in advance — and it is the reason this probe is a supplement rather than a sixth "
+        "dataset row. <b>Two noise regimes.</b> The five datasets above share one deliberately "
         "noise-friendly design: the random orthonormal projection spreads every latent factor "
         "across all D=768 ambient columns (D-fold redundancy), so the driver's isotropic noise "
         "self-averages in every pairwise distance and the ambient dimension is nominal — no curse "
-        "of dimensionality operates, <i>by construction</i>. This supplement probes the opposite, "
-        "redundancy-free extreme: 3 tight clusters live in 3 signal columns and every additional "
-        "column is pure unit-variance noise (per-column standardized), so each added dimension "
-        "adds noise power at fixed signal power — the effective SNR is 3/(D−3) and falls toward 0 "
-        "as D grows. The sweep deliberately runs to <b>D=768 — the main benchmark's ambient "
-        "dimension</b>: at the very same nominal D where all seven methods render the five "
-        "datasets cleanly, the redundancy-free regime (effective SNR ≈ 0.004) drives six of seven "
-        "to chance — the ambient dimension itself was never the difficulty; the noise geometry "
-        "is. The probe is deliberately NOT a sixth registry dataset: its ground truth "
-        "(the 3 signal columns) is intentionally not isometric to the ambient features. The "
-        "readout is the <b>kNN label accuracy</b> — the direct operational answer to \"are the "
-        "three true clusters still visible in the 2-D map?\". Distance-band Shepard ρ is "
-        "deliberately not shown here: a global ρ is only meaningful paired with its near band "
-        "(the point of this benchmark's methodology), and neither band reads cleanly against this "
-        "probe's noise-dominated ambient distances — the full metric set remains in "
-        "<code>results/dimsweep_per_run.csv</code>. Read the results as <b>regime dependence</b> "
-        "— rankings from the redundancy-rich datasets above need not transfer to "
-        "sparse/irrelevant-feature regimes, and vice versa.</p>"
+        "of dimensionality operates, <i>by construction</i>. Real CSV data is usually the "
+        "opposite: the signal lives in a few columns and every further column mostly adds noise. "
+        "This probe is that regime in its pure form: 3 tight clusters live in 3 signal columns "
+        "and every additional column is pure unit-variance noise (per-column standardized), so "
+        "each added dimension adds noise power at fixed signal power — the effective SNR is "
+        "3/(D−3) and falls toward 0 as D grows. The readout is the <b>kNN label accuracy</b> — "
+        "the direct operational answer to \"are the three true clusters still visible in the 2-D "
+        "map?\" — shown both absolute and as the chance-corrected <b>skill ratio against kNN run "
+        "directly on the raw D-dimensional features</b> (the ambient baseline: what a "
+        "practitioner gets with no dimensionality reduction at all). <b>Stage-1 reading "
+        "(same endpoint as the main benchmark):</b> the six generic methods collapse between "
+        "D≈40 and 200; <code>basemap_embedding</code> instead tracks the ambient baseline itself "
+        "(skill ratio ≈ 1: the 2-D map delivers essentially everything the raw feature space's "
+        "neighborhoods still contain) and at D=200 stands at <b>0.75 vs ≤ 0.51</b> for the best "
+        "generic method; its own breaking regime starts an octave later (D≈250–400, "
+        "realization-sensitive: 0.57 / 0.33 / 0.44 at D=250/300/400). <b>Stage-2 reading:</b> "
+        "<code>basemap_csvform</code> is unaffected where every raw-geometry method — toorPIA's "
+        "own embedding endpoint included — has already collapsed: <b>1.00 at D=200–300, 0.99 at "
+        "D=400, 0.98 at D=768</b> (effective SNR ≈ 0.004), 0.92 at D=1500, first breaking at "
+        "D=2000. Its skill ratio grows to ≈ 2.8 at D=768 and ≈ 3.9 at D=1500 — the 2-D map reads "
+        "roughly three to four times more above-chance class signal than kNN on the raw features "
+        "themselves. The probe is deliberately NOT a sixth registry dataset: its ground truth "
+        "(the 3 signal columns) is intentionally not isometric to the ambient features, and "
+        "distance-band Shepard ρ is deliberately not shown here: a global ρ is only meaningful "
+        "paired with its near band (the point of this benchmark's methodology), and neither band "
+        "reads cleanly against this probe's noise-dominated ambient distances — the full metric "
+        "set remains in <code>results/dimsweep_per_run.csv</code>. Read the results as "
+        "<b>regime dependence</b> — rankings from the redundancy-rich datasets above need not "
+        "transfer to sparse/irrelevant-feature regimes, and vice versa.</p>"
         + table
         + figure_one("noise_dims", "dimension_curve.png",
-                     "2-D kNN label accuracy vs total dimensionality D (log10 axis; chance = 1/3 "
-                     "dashed); median + bootstrap 95% CI ribbon per method. The D=1500 and D=2000 "
-                     "points pool 5 noise realizations × 3 method seeds each, so their ribbons "
-                     "show realization spread.", embed)
+                     "Left: 2-D kNN label accuracy vs total dimensionality D (log10 axis; chance "
+                     "= 1/3 dashed; dotted grey = the ambient baseline, kNN run directly on the "
+                     "raw D-dim features); median + bootstrap 95% CI ribbon per method. Right: "
+                     "the same data as the chance-corrected skill ratio against that ambient "
+                     "baseline — ratio 1 = as class-readable as the raw feature space itself. "
+                     "toorPIA's two endpoints are the solid lines (generic methods dashed): "
+                     "basemap_embedding (grey) "
+                     "tracks the ambient baseline until its breaking regime at D≈250–400; "
+                     "basemap_csvform (black) is unaffected out to D=768 and reaches skill "
+                     "ratio ≈ 3.9 at D=1500. The D=1500 and D=2000 points pool 5 noise "
+                     "realizations × 3 method seeds each, so their ribbons show realization "
+                     "spread.", embed)
         + figure_one("noise_dims", "dims_grid.png",
                      "2-D embeddings at landmark dimensions, 3 true clusters colored — watch "
-                     "where each method's clusters dissolve as noise dimensions are added.", embed)
-        + "<p class='note'><b>Honest notes.</b> (1) n=1000, matching both the main benchmark and "
-        "the source notebook. (2) toorPIA is additionally probed at <b>D=2000</b> (effective SNR "
+                     "where each method's clusters dissolve as noise dimensions are added. The "
+                     "last two rows are toorPIA's two endpoints: basemap_embedding dissolves in "
+                     "the D≈250–400 breaking regime like a raw-geometry method, while "
+                     "basemap_csvform keeps the three clusters cleanly separated through "
+                     "D=768.", embed)
+        + "<p class='note'><b>Honest notes.</b> (1) <b>Endpoints:</b> the "
+        "<code>basemap_csvform</code> rows drive the default CSV-analysis pipeline (it exposes "
+        "<code>random_seed</code>, hence R=3 seeds and CI brackets; the sweep drives the same "
+        "engine through its DataFrame form — spot-verified against a direct "
+        "<code>basemap_csvform</code> call at D=768: pairwise-distance ρ 0.998, kNN accuracy "
+        "0.975 vs 0.976; committed coordinates under "
+        "<code>external_embeddings/noise_dims/toorpia/fit/</code>). The "
+        "<code>basemap_embedding</code> rows drive the deterministic raw-geometry endpoint the "
+        "main benchmark uses (single run per D; coordinates under "
+        "<code>external_embeddings/noise_dims/toorpia/embedding/</code>; tables in "
+        "<code>results/dimsweep_embedding_*.csv</code>). Each D is one noise realization, so "
+        "values inside a breaking regime fluctuate between adjacent D (the embedding endpoint's "
+        "0.57 / 0.33 / 0.44 at D=250/300/400 is that fluctuation, not a recovery). "
+        "(1b) <b>Ambient baseline / skill ratio:</b> the baseline is leave-one-out kNN run "
+        "directly on the raw standardized D-dim features — an operational reference (what no "
+        "dimensionality reduction at all would give), not an information ceiling. The ratio is "
+        "chance-corrected, (acc − 1/3)/(acc<sub>ambient</sub> − 1/3), because both accuracies "
+        "approach chance (not 0) as D grows — the raw uncorrected ratio of a fully collapsed "
+        "method would drift toward 1 instead of 0. Above D≈1000 the denominator itself is small "
+        "(ambient 0.48 at D=1500, 0.44 at D=2000), so the ratio is increasingly "
+        "noise-sensitive there. "
+        "(2) n=1000, matching both the main benchmark and "
+        "the source notebook. (3) toorPIA is additionally probed at <b>D=2000</b> (effective SNR "
         "≈ 0.0015); the other methods are already at chance well before D=768, so the extension "
         "is run for toorPIA only (the empty cells read as 'not run', not as failures). At this "
         "extreme the outcome is <b>noise-realization dependent</b> (the signature of a critical "
@@ -451,13 +680,17 @@ def noise_dims_section(embed: bool) -> str:
         "realizations × 3 method seeds</b> (data seeds 42, 0–3): at D=1500 the realizations agree "
         "(0.90–0.93) while at D=2000 they span 0.58–0.88; D ≤ 768 cells use one realization — "
         "realization variance is negligible below the breaking regime. "
-        "(3) Bracketed ranges are bootstrap 95% CIs over seeds; deterministic methods show a "
-        "point value. (4) kNN label accuracy is leave-one-out in the 2-D embedding (k=10; 3 "
-        "balanced clusters, chance = 1/3). (5) Reproduce: "
-        "<code>python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all "
+        "(4) Bracketed ranges are bootstrap 95% CIs over seeds; deterministic methods show a "
+        "point value. (5) kNN label accuracy is leave-one-out in the 2-D embedding (k=10; 3 "
+        "balanced clusters, chance = 1/3). (6) Reproduce: "
+        "<code>python run/dimsweep.py --dims 6 10 20 40 80 100 200 250 300 400 768 --methods all "
         "--seeds 3 --n 1000</code>, then "
-        "<code>python run/dimsweep.py --dims 2000 --methods toorPIA --seeds 3 --n 1000</code> "
-        "(results merge by (dim, method, seed)).</p>")
+        "<code>python run/dimsweep.py --dims 1500 2000 --methods toorPIA --seeds 3 --n 1000 "
+        "--data-seed 42 0 1 2 3</code> (results merge by (dim, data_seed, method, seed)); the "
+        "embedding arm: <code>python run/dimsweep.py --dims 6 10 20 40 80 100 200 250 300 400 "
+        "768 --methods toorPIA --toorpia-endpoint embedding</code>; figures: "
+        "<code>python run/dimsweep.py --figures-only</code>. The committed toorPIA caches make "
+        "every replay offline.</p>")
 
 
 def addplot_section(embed: bool) -> str:
@@ -512,7 +745,8 @@ def addplot_section(embed: bool) -> str:
         "5 clusters × 2), the realistic shape of a fault: a known operating state plus an effect "
         "the historical data never showed — plus 50 fresh normal points as controls. Each method "
         "maps them with its own out-of-sample operation (PCA/Isomap: <code>transform</code>; "
-        "UMAP: seeded <code>transform</code>; toorPIA: server-side <code>addplot</code>). "
+        "UMAP: seeded <code>transform</code>; toorPIA: server-side "
+        "<code>addplot_embedding</code> on the fitted basemap). "
         "<b>Two questions, in order: detection</b> — does the anomaly land visibly outside the "
         "normal region at all (distance from the map centroid over the bulk's median radius)? — "
         "and <b>attribution</b> — is its direction from the centroid closest to its own source "
@@ -528,11 +762,14 @@ def addplot_section(embed: bool) -> str:
         "(▲ = cluster-anchored anomalies colored by SOURCE cluster, · = added normal controls). "
         "Faithful = each ▲ outside the normal region AND in its own cluster's direction, pair "
         "members adjacent; dots inside the bulk.</figcaption></figure>"
-        "<p class='note'><b>Honest notes.</b> (1) toorPIA's <code>addplot</code> needs the fitted "
-        "map's server-side state, so this test performs a live fit + addplot per seed and commits "
-        "the two coordinate sets as a self-consistent cache pair (<code>basemap_fit</code> / "
-        "<code>basemap_add</code>); the benchmark's fit cache is not reused because the server is "
-        "not bit-deterministic across sessions. (2) PCA/Isomap transforms are deterministic; "
+        "<p class='note'><b>Honest notes.</b> (1) toorPIA's <code>addplot_embedding</code> targets "
+        "the fitted basemap's server-side state, so this test performs a live "
+        "<code>basemap_embedding(l2_normalization=False)</code> + one <code>addplot_embedding</code> "
+        "call per added point (the monitoring semantics: points arrive one at a time) and commits "
+        "the two coordinate sets as a self-consistent cache pair (<code>embedding_basemap</code> / "
+        "<code>embedding_addplot</code>); the addplot inherits the basemap's preprocessing "
+        "server-side, so basemap and added points are guaranteed identical treatment. "
+        "(2) PCA/Isomap transforms and toorPIA are deterministic; "
         "UMAP's is seeded. (3) A re-fit-based alternative for the methods without an out-of-sample "
         "operation (append the new data, re-fit, Procrustes-align, measure displacement) is future "
         "work — it measures a different, weaker property (map stability under re-fit), not the "
@@ -570,6 +807,7 @@ def build(embed: bool) -> str:
     .legend .pill{display:inline-block;border-radius:10px;padding:1px 9px;margin-right:8px;font-size:12px}
     .pill-primary{background:#e3f6ec;color:#064} .pill-ref{background:#fdeee2;color:#a33}
     .figgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin:14px 0}
+    .figgrid.mapfig{grid-template-columns:1fr}  /* the map gallery spans the full width (2x) */
     figure{margin:0;border:1px solid var(--line);border-radius:8px;padding:8px;background:#fff}
     figure img{width:100%;display:block;border-radius:4px} figcaption{font-size:12px;color:var(--mut);margin-top:6px}
     .blurb{background:#f4f8ff;border-left:4px solid #6aa6ff;padding:10px 14px;border-radius:4px;font-size:14px}
@@ -584,6 +822,7 @@ def build(embed: bool) -> str:
     """
     nav = ("<nav><b>REPORT</b> &nbsp; <a href='#guide'>reading guide</a> &nbsp; "
            + " ".join(f"<a href='#{d}'>{DATASET_NAV.get(d, d)}</a>" for d in DATASETS)
+           + " <a href='#random-walk'>time series</a>"
            + " <a href='#stability'>stability</a> <a href='#notes'>notes</a>"
            + " <a href='#addplot'>addplot</a> <a href='#noise-dims'>noise-dims</a></nav>")
 
@@ -595,15 +834,21 @@ def build(embed: bool) -> str:
     # header
     parts.append(
         "<h1>DR Fidelity Benchmark — Results Report</h1>"
-        "<div class='sub'>Distance-preservation focus · 4 datasets · D=768 · N=1000 · "
-        "<b>SNR=1</b> (realistic additive noise) · seeds: R=3 (stochastic methods; "
-        "transition — committed tables) · CPU/1-thread · reproducible · "
+        "<div class='sub'>Distance-preservation focus · 5 datasets (D=768 · N=1000 · "
+        "<b>SNR=1</b>, realistic additive noise) + a time-series dataset (multi-series random "
+        "walks: D=50 · N=3000 · clean) · seeds: R=3 (stochastic methods; PCA / Isomap / "
+        "toorPIA are deterministic; transition — committed tables) · CPU/1-thread · reproducible · "
         "<a href='https://github.com/toorpia/dr-fidelity-benchmark'>code &amp; data on GitHub</a>.</div>"
         "<p class='blurb'><b>Thesis.</b> <b>Shepard ρ (full, p=100)</b> reflects <b>global-structure</b> "
         "reproduction. But in high dimensions distances concentrate, so most pairs sit at large "
         "distances and the full ρ is dominated by far pairs — the accuracy of <b>near</b> distances is "
-        "buried. We therefore restrict ρ to cumulative distance bands; <b>p=5 = the globally-nearest "
-        "5% of pairs</b> isolates <b>near-neighbor descriptive power</b>. Crucially the band uses a "
+        "buried. We therefore restrict ρ to the <b>near band</b>, defined structure-adaptively: the "
+        "pairwise-distance profile of structured data is multimodal — its <b>first mode</b> is the "
+        "within-structure pairs — and the near band is all pairs up to the density valley where "
+        "that first mode decays into the tail (pX = the lowest X% of all pairwise distances; "
+        "the boundary lands at p14–p20 on these datasets; on the "
+        "clustered datasets the boundary coincides exactly with the true within-cluster pair "
+        "fraction). It isolates <b>near-neighbor descriptive power</b>. Crucially the band uses a "
         "<b>fixed absolute radius for every point</b>, so it is fair. <b>recall@k</b> instead takes "
         "each point's own k nearest (a <b>variable radius</b>): it over-penalizes near-ties in dense "
         "regions and is <b>favorable to k-NN-based methods (t-SNE/UMAP)</b> — it is not a fair "
@@ -612,15 +857,15 @@ def build(embed: bool) -> str:
         "point value).</p>"
         "<p class='legend'><span class='pill pill-primary'>PRIMARY · band-Shepard (fixed-radius, fair)</span>"
         "<span class='pill pill-ref'>REFERENCE · recall@k etc. (variable-radius k-NN, biased)</span>"
-        "&nbsp; p=5 near → p=100 global. The two groups are colored accordingly in every table below.</p>"
+        "&nbsp; first-mode near band → p=100 global. The two groups are colored accordingly in every table below.</p>"
         "<p class='blurb'><b>Headline finding.</b> <b>PCC crushes dense clusters to points.</b> It "
-        "over-compresses the within-cluster scale by ≈50× (density) and ≈9× (clusters) relative to the "
+        "over-compresses the tightest cluster's scale by ≈93× (density) and ≈9× (clusters) relative to the "
         "truth (≈1×), destroying each cluster's internal structure — even though its global ρ (full) "
         "stays <b>high</b> (it is the highest only on density; <b>toorPIA</b> leads the global ρ on "
         "clusters and transition). toorPIA preserves the within-cluster scale (≈0.4–0.6×) across all "
         "three datasets. This scale collapse is invisible to the rank-based Shepard ρ (which is "
         "scale-invariant) but is obvious in the Shepard density plots below and is quantified by the "
-        "over-compression column. <b>toorPIA tops the composite (near + global) ranking on all three "
+        "tightest-cluster scale column. <b>toorPIA tops the composite (near + global) ranking on all three "
         "original datasets.</b> The fourth dataset (<a href='#outliers'>outliers</a>) asks a "
         "different, single-point question — whether one far-away point stays separated — scored by "
         "the standard Shepard/stress blocks plus a plain-geometry pair-angle column. There, "
@@ -631,7 +876,13 @@ def build(embed: bool) -> str:
         "cluster</b>; UMAP preserves pairs best in raw terms but attaches them to bulk-cluster "
         "edges; t-SNE fuses each pair into one point; <b>PCC tears same-kind pairs apart</b> "
         "(cohesion ≈650, angles ≈86°); PCA/Isomap send pair members to opposite sides; and "
-        "t-SNE / PyMDE / PCC cannot perform the add-data operation at all.</p>")
+        "t-SNE / PyMDE / PCC cannot perform the add-data operation at all. On the "
+        "<a href='#random-walk'>time-series dataset</a> (multi-series high-D random walks — "
+        "the true shape is a star of jagged, mutually orthogonal spokes) <b>toorPIA leads "
+        "every trajectory readout</b> (full ρ 0.924, within-series 0.970, cross-series "
+        "0.897), while the neighbor-graph methods keep only the step-level time order "
+        "(t-SNE 0.951 there) and lose the star arrangement entirely (cross-series ρ "
+        "0.366 / 0.477).</p>")
 
     # ---- reading guide: what we measure + the two figure-backed methodology explanations ----
     lab1 = snr_label(SNRS[0])
@@ -650,15 +901,16 @@ def build(embed: bool) -> str:
         "high-D distance and its 2-D distance. The catch is <b>distance concentration</b> — in high "
         "dimensions almost every pair of points sits at a similar mid-to-far distance, and only a thin "
         "sliver of pairs are genuinely close. In the plot below (the <code>clusters</code> dataset) the "
-        "near band (p≤5, green) is a small left-hand tail, while the bulk of the ≈500,000 pairs piles up "
-        "far away. Because the full ρ ranks <i>all</i> pairs together and only ~5% are near, "
-        "near-distance errors are out-voted about 19:1 and averaged away. A method can crush every "
-        "cluster to a blob yet still post a near-perfect full ρ. To actually see near-neighbor fidelity "
-        "we restrict ρ to the <b>near band (p=5)</b>: the nearest 5% of pairs, judged on one fixed "
-        "distance radius.</p>"
+        "near band (green) is the profile's first mode — the within-cluster pairs, ~14% here — while the "
+        "bulk of the ≈500,000 pairs piles up far away. Because the full ρ ranks <i>all</i> pairs "
+        "together, near-distance errors are out-voted ~6:1 and "
+        "averaged away. A method can crush every cluster to a blob yet still post a near-perfect "
+        "full ρ. To actually see near-neighbor fidelity we restrict ρ to the <b>first-mode near "
+        "band</b>: all pairs up to the density valley where the first mode of the distance profile "
+        "decays into the tail, judged on one fixed distance radius.</p>"
         + figure_one("clusters", f"distance_distribution_snr{lab1}.png",
-                     "clusters: most pairs are far (between-cluster); the near 5% (within-cluster fine "
-                     "structure) is the green tail the full ρ averages away.", embed) +
+                     "clusters: most pairs are far (between-cluster); the first-mode near band (within-cluster "
+                     "fine structure, here p14) is the green tail the full ρ averages away.", embed) +
 
         "<h3>Why recall@k / trustworthiness / continuity are a biased reference</h3>"
         "<p>The DR literature's usual <i>local</i> metric is <b>recall@k</b> (and its cousins "
@@ -671,7 +923,7 @@ def build(embed: bool) -> str:
         "almost equidistant, yet one counts fully and the other not at all (panel 2): a tiny coordinate "
         "wobble flips membership and the score jumps, even though the actual distances barely moved. Both "
         "choices make recall@k structurally favorable to neighbor-graph methods (t-SNE / UMAP) and a poor "
-        "measure of faithful near-distance reproduction. The fixed-radius near-band Shepard ρ (p=5) uses "
+        "measure of faithful near-distance reproduction. The fixed-radius first-mode near-band Shepard ρ uses "
         "the <i>same</i> radius for every point and scores by actual distance, so it has neither problem. "
         "We keep recall@k only as a labelled <b>reference</b> column.</p>"
         + figure_one("density", f"recall_bias_snr{lab1}.png",
@@ -690,7 +942,7 @@ def build(embed: bool) -> str:
         "<dt>Shepard ρ</dt><dd>Spearman rank correlation between high-D and 2-D pairwise distances "
         "(1 = perfect distance ordering).</dd>"
         "<dt>Distance band (p)</dt><dd>The pairs whose high-D distance is in the lowest <i>p</i>% of all "
-        "pairs. <b>p=5</b> = near-neighbor band; <b>p=100 (full)</b> = all pairs = the global number.</dd>"
+        "pairs. The <b>near band</b> = the profile's first mode (up to its density valley; p14–p20 here); <b>p=100 (full)</b> = all pairs = the global number.</dd>"
         "<dt>Stress</dt><dd>Value-based distance error (lower = better); complements the rank-based "
         "Shepard ρ by catching distorted distance <i>values</i> (e.g. clusters crushed to points).</dd>"
         "<dt>Over-compression ×</dt><dd>How much a method shrinks the within-cluster scale vs the truth. "
@@ -709,21 +961,28 @@ def build(embed: bool) -> str:
 
         "<h3>How to read the ranking tables</h3>"
         "<p class='note'>Each per-dataset table has four column groups, left to right: <b>Ranking "
-        "score</b> (composite points — for full ρ and for p5 ρ the 1st→5th method scores 5→1 points; Σ "
+        "score</b> (composite points — for full ρ and for the first-mode near ρ the 1st→5th method scores 5→1 points; Σ "
         "is their sum and rows are sorted by Σ); immediately beside it the "
         "<span class='pill pill-primary'>PRIMARY</span> <b>band-Shepard ρ</b> block (fixed-radius, fair — "
-        "full·global and p5·near) <i>that the ranking score is computed from</i>; then <b>Within-cluster "
-        "scale</b> (the over-compression ×); and the <span class='pill pill-ref'>REFERENCE</span> "
+        "full·global and near·first-mode) <i>that the ranking score is computed from</i>; then <b>Tightest-cluster "
+        "scale</b> (the tight-cluster scale ×); and the <span class='pill pill-ref'>REFERENCE</span> "
         "<b>recall@k</b> block (variable-radius k-NN, biased — greyed out). In every column the "
         "<span style='background:#d8f5e3;padding:0 4px'><b>best</b></span> value is green and the "
         "<span style='background:#fcd9d6;padding:0 4px'><b>worst</b></span> is light red. A "
         "<span style='background:#cf3b30;color:#fff;padding:0 4px'><b>darker red</b></span> (regardless "
-        "of rank) flags an outright failure: a <b>negative</b> near-band p5 ρ, an "
-        "<b>over-compression &gt; 2×</b>, or a <b>negative anomaly-pair ρ</b>. Bracketed ranges "
+        "of rank) flags an outright failure: a <b>negative</b> near-band ρ, the table's <b>worst "
+        "tightest-cluster crush when it exceeds 5×</b> (crushing destroys information — it cannot "
+        "be read back from the map; inflation is legible, if exaggerated), or a <b>negative "
+        "anomaly-pair ρ</b>. In the tightest-cluster column only the value closest to 1 is "
+        "highlighted (light green); everything below the flag threshold stays uncolored. "
+        "Note the composite ranking scores <b>distance "
+        "fidelity only</b> (the PRIMARY ρ columns, plus the anomaly-pair ρ on the outliers "
+        "dataset); the k-NN reference block is deliberately unscored — see the recall@k bias "
+        "note. Bracketed ranges "
         "are bootstrap 95% CIs over seeds (deterministic methods show a single value). The "
         "<b>outliers</b> dataset adds a purple <b>outlier ρ</b> column — the standard Shepard ρ "
         "restricted to the anomaly-involving pairs — and a third ranking column scored on it "
-        "(1st→5 … 5th→1), so the composite Σ there is full + p5 + outlier.</p>")
+        "(1st→5 … 5th→1), so the composite Σ there is full + near + outlier.</p>")
 
     # per-dataset
     for d in DATASETS:
@@ -731,8 +990,13 @@ def build(embed: bool) -> str:
         parts.append(f"<p class='blurb'>{html.escape(DATASET_BLURB[d])}</p>")
         for snr in SNRS:
             parts.append(f"<h3>SNR = <span class='snr-tag'>{snr_label(snr)}</span></h3>")
+            map_fig, rest_figs = figure_block(d, snr, embed)
+            parts.append(map_fig)          # the map is the primary output -- shown before the table
             parts.append(ranking_table(agg, d, snr))
-            parts.append(figure_block(d, snr, embed))
+            parts.append(rest_figs)
+
+    # the time-series dataset (multi-series random walks) -- same footing, own metric split
+    parts.append(random_walk_section(embed))
 
     # stability
     parts.append("<h2 id='stability'>Run-to-run stability (Procrustes)</h2>")
@@ -747,12 +1011,28 @@ def build(embed: bool) -> str:
     # notes
     parts.append(
         "<h2 id='notes'>Methodology notes</h2>"
-        "<p class='note'><b>Why bands (and why p=5 is the near-neighbor metric).</b> Shepard ρ over "
+        "<p class='note'><b>Why bands (and how the near band is defined).</b> Shepard ρ over "
         "<i>all</i> pairs measures global-structure reproduction, but high-dimensional distance "
         "concentration packs most pairs into a narrow far band, so the full ρ is dominated by far "
-        "pairs and near-distance accuracy is buried. Cumulative cutoffs expose the near→far profile; "
-        "<b>p=5</b> (globally-nearest 5% of pairs) is the near-neighbor descriptive-power measure that "
-        "the full ρ hides.</p>"
+        "pairs and near-distance accuracy is buried. The fixed percentile cutoffs (the band at p "
+        "holds the lowest p% of all pairs; p = 5…100 in the CSVs and the profile figures) expose "
+        "the near→far profile; the HEADLINE near band is "
+        "<b>structure-adaptive</b>: the pairwise-distance profile of structured data is multimodal "
+        "— its first mode is the within-structure pairs — and the band is all pairs up to the "
+        "density valley where that first mode decays into the tail. Estimator "
+        "(<code>metrics.distances.first_mode_threshold</code>; deterministic, all pairs, constants "
+        "disclosed): histogram over 256 equal-width bins, smoothed twice with a length-9 boxcar; "
+        "the boundary is the profile minimum between the first two local maxima (order 4; a mode "
+        "must reach ≥5% of the profile maximum, and the valley must dip below 95% of the first "
+        "mode — tail-noise bumps are not modes), required to lie below the median distance; if no "
+        "second mode exists the band falls back "
+        "to the 5th-percentile radius (flagged in the CSVs; never triggered on these datasets). At SNR=1 the "
+        "boundary lands at p20.5 (density), p14.2 (clusters), p14.9 (transition), p19.7 "
+        "(outliers), p18.0 (populations) — on the three clustered datasets this coincides exactly "
+        "with the true within-cluster pair fraction (14.2% / 19.7% / 18.0%), i.e. the data-driven "
+        "band recovers the ground-truth notion of \"near\" without using labels. The detected "
+        "percentile and fallback flag are recorded per row (<code>near_band_pct</code>, "
+        "<code>near_band_fallback</code>).</p>"
         "<p class='note'><b>Fixed-radius (fair) vs variable-radius (biased).</b> The band uses one "
         "absolute distance threshold for the whole dataset — every point is judged on the same radius. "
         "<b>recall@k / trustworthiness / continuity</b> instead take each point's own k nearest "
@@ -761,19 +1041,19 @@ def build(embed: bool) -> str:
         "<b>not a correct neighborhood evaluation</b> and are reported as a biased reference only. "
         "(A per-point band-Shepard variant exists for contrast, but it re-introduces the variable "
         "radius, so the fixed-radius global band is primary.)</p>"
-        "<p class='note'><b>Density-weighting caveat.</b> On non-uniform-density data the globally "
-        "nearest 5% of pairs is weighted toward dense regions, so p=5 emphasizes near-structure where "
+        "<p class='note'><b>Density-weighting caveat.</b> On non-uniform-density data the global "
+        "first-mode band is weighted toward dense regions, so the near ρ emphasizes near-structure where "
         "pairs are dense. A per-point-uniform view is the (variable-radius) per-point variant — the "
         "trade-off is point-uniformity vs fixed-radius fairness.</p>"
         "<p class='note'><b>Non-circularity.</b> PCC is run with the Pearson (value) loss while the "
         "primary metric is Spearman (rank) Shepard ρ — optimizing Pearson yet scoring on the rank "
         "metric is the honest, non-circular outcome.</p>"
         "<p class='note'><b>PCC crushes dense clusters (scale collapse).</b> PCC squeezes each dense "
-        "cluster to a near-point in 2-D (within-cluster over-compression ≫1) while keeping high global "
+        "cluster to a near-point in 2-D (tightest-cluster over-compression ≫1) while keeping high global "
         "ρ. Mechanistically this follows from its published objective (arXiv:2503.07609), which "
         "optimizes only distances to a sampled set of reference points, leaving non-reference points "
         "free to overlap; methods that constrain all pairwise distances keep the local scale. Note the "
-        "rank-based Shepard ρ is scale-invariant and largely misses this — the over-compression metric "
+        "rank-based Shepard ρ is scale-invariant and largely misses this — the tightest-cluster scale metric "
         "and the Shepard density plots are what reveal it.</p>"
         "<p class='note'><b>Outliers dataset — how it is scored.</b> Anchored in the standard, "
         "established readings only: the Shepard density figure (high-D vs 2-D pairwise distance — "
@@ -785,10 +1065,40 @@ def build(embed: bool) -> str:
         "reporting</b>: it is not an established metric and its double normalization did not track "
         "the Shepard/embedding pictures; its raw columns remain in the per-run CSVs for the "
         "record.</p>"
-        "<p class='note'><b>toorPIA.</b> Called <code>fit_transform(..., vector_normalization=False, "
-        "random_seed=seed)</code> so it embeds the same vectors the other methods see; coordinates are "
-        "cached/committed for offline reproduction (no API key needed). The installed toorpia 1.1.1 "
-        "does expose a seed (vs the original spec).</p>"
+        "<p class='note'><b>toorPIA.</b> Called via the embedding endpoint "
+        "<code>basemap_embedding(X, l2_normalization=False)</code> (toorpia 1.2.0): no per-column "
+        "normalization, no centering, and per-row L2 normalization disabled, so it embeds the very "
+        "same raw vectors the other methods see and the plain-Euclidean metrics measure "
+        "(preprocessing aligned with the evaluation basis). The endpoint exposes no random seed and "
+        "is deterministic up to server jitter (measured run-to-run mean |Δ| ≈ 1e-3 of the map "
+        "scale), so toorPIA is treated as a deterministic method: point values without CI brackets, "
+        "and no run-to-run stability row. Coordinates are cached/committed for offline reproduction "
+        "(no API key needed).</p>"
+        "<p class='note'><b>Baseline hyperparameters.</b> The open-source methods run at library "
+        "defaults (t-SNE perplexity=30, UMAP n_neighbors=15; toorPIA has no placement knob), so "
+        "the standing objection is \"the neighbor methods would rank differently if tuned\". "
+        "<code>run/hyperparam_sensitivity.py</code> sweeps each method's placement-critical knob "
+        "over 5–100 on density and clusters (SNR=1, R=3): raising t-SNE's perplexity moves BOTH "
+        "ranked columns materially. On density, perplexity=100 lifts its full ρ from 0.30 to 0.60 "
+        "(bottom tier → mid-pack, still below PCA 0.70 / toorPIA 0.82 / PCC 0.82) and its "
+        "first-mode near ρ from 0.26 to 0.41 — at perplexity ≥ 50 t-SNE overtakes toorPIA's "
+        "density near ρ (0.31); on clusters its near ρ rises 0.39 → 0.54 (a lead it already held) "
+        "while its full ρ stays flat at 0.37. Even re-scored with those tuned values the "
+        "composite leaders do not change (density: toorPIA 8 vs t-SNE 7; clusters: toorPIA 9 vs "
+        "t-SNE 6), and the same settings erode t-SNE's own reference metric (recall@15: "
+        "0.254 → 0.230 on density, 0.270 → 0.208 on clusters) — the global-vs-local trade-off is "
+        "intrinsic to the method, not an artifact of the default. UMAP's gains are small "
+        "everywhere (full ρ 0.16 → 0.26 on density, still last tier; near and recall "
+        "flat-to-declining beyond n_neighbors ≈ 15–30). Defaults therefore do not decide any "
+        "leadership — but tuned t-SNE's near-band standing on density is a genuine sensitivity, "
+        "disclosed here. Full tables: "
+        "<code>results/hyperparam_sensitivity_*.csv</code>.</p>"
+        "<figure class='guidefig'>" + img("hyperparam", "sensitivity_snr1.png", embed) +
+        "<figcaption>Baseline-hyperparameter sensitivity (SNR=1, median + bootstrap 95% CI over "
+        "3 seeds; library default dashed). Green/blue = the two ranked ρ columns; red = the "
+        "k-NN-favorable reference metric the neighbor methods lead. Raising t-SNE's perplexity "
+        "buys global and near-band ρ at the cost of its own recall@15; no setting changes the "
+        "composite leaders.</figcaption></figure>"
         "<p class='note'><b>Scope.</b> This characterizes distance/structure preservation on "
         "synthetic known-structure data; it is not a claim about downstream-task superiority. When "
         "CIs overlap, no strict winner is asserted.</p>")
