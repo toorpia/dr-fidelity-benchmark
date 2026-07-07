@@ -15,6 +15,6 @@
 | pymde | 0.3.0 |
 | pcc | installed (version unknown) |
 | openTSNE | 1.0.4 |
-| toorpia | installed (version unknown) |
+| toorpia | 1.2.0 |
 
 Recorded automatically by `run/environment.py` at benchmark runtime. Pinned versions are in `requirements.txt`.
