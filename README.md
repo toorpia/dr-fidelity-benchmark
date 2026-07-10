@@ -1,6 +1,6 @@
 # DR Fidelity Benchmark — distance-preservation focus
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21189374.svg)](https://doi.org/10.5281/zenodo.21189374)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21189374-blue)](https://doi.org/10.5281/zenodo.21189374)
 
 A reproducible benchmark characterizing how faithfully dimensionality-reduction (DR) methods preserve
 **distance structure** when mapping high-dimensional data to 2D, on synthetic datasets whose true
