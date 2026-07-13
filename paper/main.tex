@@ -1,17 +1,8 @@
 \documentclass[11pt]{article}
 
-% ============================================================
-% DR Fidelity Benchmark --- arXiv preprint
-% Author: Yoshio Takaeda (toor Inc.)
-% Source of record: https://github.com/toorpia/dr-fidelity-benchmark
-% Frozen snapshot: release tag v1.2.0  +  Zenodo DOI 10.5281/zenodo.21189374
-% ------------------------------------------------------------
-% BUILD: pdflatex main && bibtex main && pdflatex main && pdflatex main
-% ============================================================
-
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-% \usepackage{lmodern}  % re-enable for arXiv (present there); omitted for local build
+\usepackage{lmodern}
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
 \usepackage{booktabs}
@@ -21,25 +12,22 @@
 \usepackage{subcaption}
 \usepackage[margin=1in]{geometry}
 \usepackage{xcolor}
+\usepackage{microtype}
 \usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
-\usepackage{orcidlink}   % if unavailable at build time, comment out and remove \orcidlink uses
+\usepackage{orcidlink}
 
 \graphicspath{{figures/}}
 
-% --- editorial marker for in-progress spots (remove before submission) ---
-\newcommand{\TODO}[1]{\textcolor{red}{[\textbf{TODO:} #1]}}
 \newcommand{\rhoS}{\ensuremath{\rho}}
 
 \title{\textbf{A Fixed-Radius Distance-Band Benchmark for\\
 Dimensionality-Reduction Fidelity, and a\\
 Citable Characterization of a Closed-Source Method}}
-% NOTE: title is a working title --- shorten/adjust to taste.
 
 \author{
   Yoshio Takaeda\,\orcidlink{0009-0005-4968-9456}\\
   \textit{toor Inc.}\\
   \texttt{takaeda@sophia.ac.jp}
-  % NOTE: decide sophia.ac.jp vs. a toor Inc. address for the paper contact
 }
 
 \date{\today}
@@ -47,7 +35,6 @@ Citable Characterization of a Closed-Source Method}}
 \begin{document}
 \maketitle
 
-% ============================================================
 \begin{abstract}
 Dimensionality-reduction (DR) methods are routinely judged by how well each
 point's $k$ nearest neighbors survive the 2-D embedding
@@ -81,7 +68,6 @@ committed to the artifact. The benchmark is released as a
 reproducible, externally citable characterization.
 \end{abstract}
 
-% ============================================================
 \section{Introduction}
 \label{sec:intro}
 
@@ -156,7 +142,6 @@ coordinates (not its algorithm) are committed to the artifact.
   rest on the vendor's judgment (\S\ref{sec:reproducibility}).
 \end{enumerate}
 
-% ============================================================
 \section{Related Work}
 \label{sec:related}
 
@@ -215,12 +200,8 @@ structurally blind to near-distance errors. The fixed-radius near band of
 redundancy-rich by design, so concentration shapes the pair-distance
 profile without destroying the signal; \S\ref{sec:protocol}.)
 
-% ============================================================
 \section{Metrics: fixed-radius bands vs.\ variable-radius $k$-NN}
 \label{sec:metrics}
-
-% --- SOURCE: REPORT.md "Reading guide" + "Methodology notes" + README "Metrics"
-% This is the methodological core --- write it carefully and NON-defensively.
 
 \subsection{Shepard $\rho$ and why the global number hides near structure}
 \label{sec:bands}
@@ -418,7 +399,6 @@ flagged in the tables independently of rank: a negative near-band $\rho$, the
 table's worst tightest-cluster crush when it exceeds $5\times$, and a
 negative anomaly-pair $\rho$.
 
-% ============================================================
 \section{Datasets and Experimental Setup}
 \label{sec:datasets}
 
@@ -538,7 +518,6 @@ and a trustworthy internal structure (minority-internal $\rho$). A small
 minority \emph{without} internal structure is the outliers dataset, so the
 two datasets connect continuously.
 
-% ============================================================
 \section{Results}
 \label{sec:results}
 
@@ -738,10 +717,6 @@ consistent with reference-point subsampling: pairs internal to the minority
 carry a share of the loss that shrinks with the \emph{square} of the minority
 fraction (0.25\% of terms at 5\%), so minority points are placed almost
 entirely by their relations to majority reference points.
-% NOTE: membership-restricted rho values above are from
-% results/metrics_aggregated.csv (within_minority_shepard__vs_ambient,
-% cross_population_shepard__vs_ambient); the ranking table (tables/populations)
-% carries the standard two-sided columns.
 
 \begin{figure}[t]
   \centering
@@ -763,15 +738,14 @@ entirely by their relations to majority reference points.
 Stochastic methods are run with $R{=}3$ seeds; run-to-run wobble is
 summarized as the per-point positional dispersion after removing the
 rotation/scale/flip gauge (Procrustes) together with the across-seed spread of
-the headline metrics, and is committed per dataset in the artifact
-(\texttt{results/stability.csv}). PCA, Isomap, and toorPIA are deterministic
+the headline metrics, and is committed per dataset in the artifact's
+\texttt{results/stability.csv}. PCA, Isomap, and toorPIA are deterministic
 (same input $\to$ identical map; toorPIA's embedding endpoint exposes no
 seed). The stochastic methods' wobble is small relative to the between-method
 differences discussed above, and the bootstrap CIs shown in every ranking
 table carry the seed-level uncertainty into the comparisons; we assert no
 strict winner where CIs overlap.
 
-% ============================================================
 \section{Supplement: out-of-sample monitoring (addplot)}
 \label{sec:addplot}
 
@@ -806,9 +780,9 @@ accuracy (0.8--1.0) carries no alarm --- detection silently fails. Added
 normal controls land correctly for every operable method (ratio 0.87--1.01).
 
 Three honest notes on the protocol. (1) toorPIA's \texttt{addplot\_embedding}
-targets the fitted basemap's server-side state, so this test performs a live
-\texttt{basemap\_embedding} plus one \texttt{addplot\_embedding} call per
-added point (the monitoring semantics: points arrive one at a time) and
+targets the fitted basemap's server-side state, so this test performs one
+live \texttt{basemap\_embedding} call and one \texttt{addplot\_embedding}
+call per added point (the monitoring semantics: points arrive one at a time) and
 commits the two coordinate sets as a self-consistent cache pair; the addplot
 inherits the basemap's preprocessing server-side, so basemap and added points
 receive identical treatment. (2) The PCA/Isomap transforms and toorPIA are
@@ -828,12 +802,8 @@ operation itself.
   \label{fig:addplot}
 \end{figure}
 
-% ============================================================
 \section{Discussion and Limitations}
 \label{sec:limitations}
-
-% --- SOURCE: REPORT.md "Scope" + README "Conflict of interest & trust measures"
-% These pre-written passages are strong; adapt them faithfully.
 
 \subsection{Scope}
 
@@ -901,7 +871,6 @@ vendor-supplied coordinates evaluated by open code. This asymmetry is
 intrinsic to benchmarking a closed-source method and is stated here rather
 than papered over.
 
-% ============================================================
 \section{Conclusion}
 \label{sec:conclusion}
 
@@ -935,20 +904,16 @@ coordinates, the release (v1.2.0, archived on Zenodo) is intended as a
 reproducible, externally citable characterization that future work --- and
 other people's papers --- can cite instead of vendor claims.
 
-% ============================================================
 \section*{Data and Code Availability}
 The benchmark code, committed results, figures, and toorPIA output-coordinate
 caches are available at \url{https://github.com/toorpia/dr-fidelity-benchmark}
-(release tag v1.2.0), archived at
-Zenodo (\href{https://doi.org/10.5281/zenodo.21189374}{10.5281/zenodo.21189374}).
+(release tag v1.2.0), archived at Zenodo (version DOI
+\href{https://doi.org/10.5281/zenodo.21233959}{10.5281/zenodo.21233959};
+all versions:
+\href{https://doi.org/10.5281/zenodo.21189374}{10.5281/zenodo.21189374}).
 This paper reports the results committed at that tag.
 
-\section*{Acknowledgments}
-\TODO{optional --- NAIST (Prof.\ Taro Watanabe's NLP lab), Sophia University,
-any colleagues; omit if not desired.}
-
-% ============================================================
-\bibliographystyle{unsrt}   % citation-order numbered; swap to plainnat/abbrvnat if desired
+\bibliographystyle{unsrt}
 \bibliography{references}
 
 \end{document}
