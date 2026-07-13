@@ -1,0 +1,20 @@
+% AUTO-GENERATED from REPORT.md --- do not hand-edit values
+\begin{table}[t]
+\centering
+\caption{Continuous closed-loop transition: distance-fidelity ranking at SNR${=}1$.\; Composite points: 1st$\to$5 \dots\ 5th$\to$1 on the full-$\rho$ order and on the near-$\rho$ order; rows sorted by $\Sigma$. $\rho$ columns are Shepard (Spearman) correlations vs.-ambient. \textbf{Bold} = best in column, \textit{italic} = worst; \textsuperscript{\dag} = outright-failure flag (negative near-band $\rho$, or worst tight-cluster crush exceeding $5\times$). Brackets are bootstrap 95\% CIs over $R{=}3$ seeds; deterministic methods (PCA, Isomap, toorPIA) show point values. recall/trust/continuity are the variable-radius $k$-NN reference block (biased; unscored). Values transcribed verbatim from the v1.2.0 committed results.}
+\label{tab:transition}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccccccc}
+\toprule
+method & full & near & $\Sigma$ & full $\rho$ (global) & near $\rho$ (first-mode) & scale $\times$ & recall@15 & trust@15 & cont.@15 \\
+\midrule
+PCC & 4 & 4 & \textbf{8} & 0.640 {\scriptsize[0.639, 0.648]} & 0.727 {\scriptsize[0.725, 0.729]} & 2.112 {\scriptsize[1.791, 2.140]} & 0.204 {\scriptsize[0.203, 0.209]} & 0.947 {\scriptsize[0.947, 0.948]} & 0.962 {\scriptsize[0.962, 0.964]} \\
+t-SNE & 2 & \textbf{5} & 7 & 0.556 {\scriptsize[0.501, 0.559]} & \textbf{0.753 {\scriptsize[0.747, 0.754]}} & \textbf{1.022 {\scriptsize[0.962, 1.042]}} & \textbf{0.363 {\scriptsize[0.363, 0.364]}} & \textbf{0.974} & \textbf{0.976 {\scriptsize[0.974, 0.976]}} \\
+toorPIA & \textbf{5} & \textit{0} & 5 & \textbf{0.729} & 0.548 & 0.394 & 0.232 & 0.964 & 0.965 \\
+PCA & 3 & 2 & 5 & 0.556 & 0.630 & 0.859 & 0.182 & 0.948 & 0.956 \\
+UMAP & \textit{0} & 3 & 3 & \textit{0.483 {\scriptsize[0.473, 0.491]}} & 0.695 {\scriptsize[0.694, 0.699]} & 2.410 {\scriptsize[2.323, 2.490]} & 0.292 {\scriptsize[0.288, 0.296]} & 0.966 {\scriptsize[0.966, 0.967]} & 0.968 {\scriptsize[0.968, 0.968]} \\
+PyMDE & 1 & \textit{0} & \textit{1} & 0.540 {\scriptsize[0.423, 0.581]} & \textit{0.310 {\scriptsize[0.130, 0.446]}} & 0.128 {\scriptsize[0.104, 1.777]} & \textit{0.155 {\scriptsize[0.142, 0.157]}} & \textit{0.823 {\scriptsize[0.810, 0.833]}} & \textit{0.841 {\scriptsize[0.711, 0.853]}} \\
+Isomap & \textit{0} & 1 & \textit{1} & 0.533 & 0.613 & 0.976 & 0.204 & 0.960 & 0.961 \\
+\bottomrule
+\end{tabular}}%
+\end{table}

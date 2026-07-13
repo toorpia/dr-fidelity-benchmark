@@ -1,0 +1,20 @@
+% AUTO-GENERATED from REPORT.md --- do not hand-edit values
+\begin{table}[t]
+\centering
+\caption{Distinct dense clusters: distance-fidelity ranking at SNR${=}1$.\; Composite points: 1st$\to$5 \dots\ 5th$\to$1 on the full-$\rho$ order and on the near-$\rho$ order; rows sorted by $\Sigma$. $\rho$ columns are Shepard (Spearman) correlations vs.-ambient. \textbf{Bold} = best in column, \textit{italic} = worst; \textsuperscript{\dag} = outright-failure flag (negative near-band $\rho$, or worst tight-cluster crush exceeding $5\times$). Brackets are bootstrap 95\% CIs over $R{=}3$ seeds; deterministic methods (PCA, Isomap, toorPIA) show point values. recall/trust/continuity are the variable-radius $k$-NN reference block (biased; unscored). Values transcribed verbatim from the v1.2.0 committed results.}
+\label{tab:clusters}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccccccc}
+\toprule
+method & full & near & $\Sigma$ & full $\rho$ (global) & near $\rho$ (first-mode) & scale $\times$ & recall@15 & trust@15 & cont.@15 \\
+\midrule
+toorPIA & \textbf{5} & 4 & \textbf{9} & \textbf{0.586} & 0.248 & 0.518 & 0.139 & 0.949 & 0.954 \\
+t-SNE & 1 & \textbf{5} & 6 & 0.367 {\scriptsize[0.364, 0.374]} & \textbf{0.393 {\scriptsize[0.391, 0.394]}} & 1.600 {\scriptsize[1.587, 1.643]} & \textbf{0.270 {\scriptsize[0.263, 0.271]}} & \textbf{0.959} & \textbf{0.967 {\scriptsize[0.967, 0.968]}} \\
+PyMDE & 4 & 1 & 5 & 0.493 {\scriptsize[0.423, 0.519]} & 0.111 {\scriptsize[0.067, 0.118]} & 0.168 {\scriptsize[0.159, 1.378]} & \textit{0.075 {\scriptsize[0.073, 0.087]}} & \textit{0.758 {\scriptsize[0.736, 0.798]}} & \textit{0.827 {\scriptsize[0.782, 0.864]}} \\
+PCC & 3 & 2 & 5 & 0.476 {\scriptsize[0.456, 0.480]} & 0.132 {\scriptsize[0.132, 0.171]} & 8.857 {\scriptsize[6.598, 10.135]}\,\textsuperscript{\dag} & 0.123 {\scriptsize[0.123, 0.128]} & 0.945 & 0.947 {\scriptsize[0.947, 0.948]} \\
+PCA & 2 & 3 & 5 & 0.464 & 0.135 & \textbf{0.882} & 0.127 & 0.915 & 0.938 \\
+UMAP & \textit{0} & \textit{0} & \textit{0} & 0.359 {\scriptsize[0.345, 0.366]} & 0.093 {\scriptsize[0.087, 0.103]} & 3.281 {\scriptsize[3.124, 3.512]} & 0.196 {\scriptsize[0.189, 0.198]} & 0.949 {\scriptsize[0.948, 0.949]} & 0.956 {\scriptsize[0.956, 0.957]} \\
+Isomap & \textit{0} & \textit{0} & \textit{0} & \textit{0.337} & -0.056\,\textsuperscript{\dag} & 0.440 & 0.089 & 0.869 & 0.885 \\
+\bottomrule
+\end{tabular}}%
+\end{table}

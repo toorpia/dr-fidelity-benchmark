@@ -1,0 +1,20 @@
+% AUTO-GENERATED from REPORT.md --- do not hand-edit values
+\begin{table}[t]
+\centering
+\caption{Off-subspace outliers: distance-fidelity ranking at SNR${=}1$.\; Composite points: 1st$\to$5 \dots\ 5th$\to$1 on the full-$\rho$ order and on the near-$\rho$ order and on the outlier-$\rho$ order; rows sorted by $\Sigma$. $\rho$ columns are Shepard (Spearman) correlations vs.-ambient. \textbf{Bold} = best in column, \textit{italic} = worst; \textsuperscript{\dag} = outright-failure flag (negative near-band $\rho$, or worst tight-cluster crush exceeding $5\times$). Brackets are bootstrap 95\% CIs over $R{=}3$ seeds; deterministic methods (PCA, Isomap, toorPIA) show point values. recall/trust/continuity are the variable-radius $k$-NN reference block (biased; unscored). Values transcribed verbatim from the v1.2.0 committed results.}
+\label{tab:outliers}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccccccccc}
+\toprule
+method & full & near & outl. & $\Sigma$ & full $\rho$ (global) & near $\rho$ (first-mode) & scale $\times$ & recall@15 & trust@15 & cont.@15 & outlier $\rho$ \\
+\midrule
+toorPIA & \textbf{5} & 4 & \textbf{5} & \textbf{14} & \textbf{0.759} & 0.253 & \textbf{0.749} & 0.127 & 0.927 & 0.934 & \textbf{0.615} \\
+PCA & 3 & 3 & 4 & 10 & 0.585 & 0.249 & 1.482 & 0.104 & 0.845 & 0.906 & 0.156 \\
+PCC & 4 & 2 & 3 & 9 & 0.707 {\scriptsize[0.696, 0.708]} & 0.248 {\scriptsize[0.242, 0.248]} & 2.089 {\scriptsize[2.025, 2.171]} & 0.125 {\scriptsize[0.125, 0.127]} & 0.926 {\scriptsize[0.926, 0.926]} & 0.933 & 0.154 {\scriptsize[0.114, 0.164]} \\
+t-SNE & \textit{0} & \textbf{5} & 1 & 6 & 0.481 {\scriptsize[0.480, 0.502]} & \textbf{0.403 {\scriptsize[0.401, 0.406]}} & 2.417 {\scriptsize[2.397, 2.434]} & \textbf{0.247 {\scriptsize[0.246, 0.250]}} & \textbf{0.944 {\scriptsize[0.943, 0.945]}} & \textbf{0.952 {\scriptsize[0.951, 0.952]}} & 0.083 {\scriptsize[0.047, 0.136]} \\
+Isomap & 1 & \textit{0} & 2 & 3 & 0.490 & \textit{0.016} & 1.887 & \textit{0.089} & 0.907 & 0.912 & 0.153 \\
+PyMDE & 2 & \textit{0} & \textit{0} & 2 & 0.527 {\scriptsize[0.506, 0.580]} & 0.134 {\scriptsize[0.115, 0.141]} & 0.722 {\scriptsize[0.359, 2.135]} & 0.095 {\scriptsize[0.090, 0.096]} & \textit{0.837 {\scriptsize[0.823, 0.846]}} & \textit{0.797 {\scriptsize[0.777, 0.829]}} & \textit{0.033 {\scriptsize[0.006, 0.035]}} \\
+UMAP & \textit{0} & 1 & \textit{0} & \textit{1} & \textit{0.464 {\scriptsize[0.459, 0.475]}} & 0.158 {\scriptsize[0.156, 0.166]} & 4.894 {\scriptsize[4.578, 4.964]} & 0.182 {\scriptsize[0.180, 0.182]} & 0.929 {\scriptsize[0.929, 0.930]} & 0.941 {\scriptsize[0.940, 0.941]} & 0.062 {\scriptsize[-0.005, 0.111]} \\
+\bottomrule
+\end{tabular}}%
+\end{table}
