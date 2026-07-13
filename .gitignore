@@ -17,6 +17,17 @@ results/run.log
 # private/internal sibling deliverable (separate repo) — never publish here
 to_umezaki_san/
 
+# paper build artifacts (the sources main.tex / references.bib / tables / figures ARE committed)
+paper/main.aux
+paper/main.log
+paper/main.out
+paper/main.bbl
+paper/main.blg
+paper/main.pdf
+paper/arxiv-submission.zip
+# working handoff notes for the paper (internal; not part of the publication)
+paper/HANDOFF_PROMPT.md
+
 # undocumented N=3000 scaling run (kept local; the canonical report is N=1000)
 results/n3000/
 figures/n3000/

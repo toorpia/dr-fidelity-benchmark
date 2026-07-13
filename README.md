@@ -6,6 +6,9 @@ A reproducible benchmark characterizing how faithfully dimensionality-reduction 
 **distance structure** when mapping high-dimensional data to 2D, on synthetic datasets whose true
 geometry is known.
 
+**Paper:** an arXiv preprint of this benchmark (submission in preparation) lives under [`paper/`](paper/);
+it reports the results frozen at release tag **v1.2.0**, while this README and REPORT.md track the living benchmark.
+
 > **New here?** Read *What this measures* → *Results at a glance* → *Key terms* below (≈2 min), then
 > open the **published report** at <https://toorpia.github.io/dr-fidelity-benchmark/> for the
 > results with figures and a step-by-step reading guide (the same content as **`REPORT.html`** in
