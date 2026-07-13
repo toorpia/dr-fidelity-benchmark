@@ -160,9 +160,10 @@ neighborhoods while leaving large-scale distances only weakly constrained.
 PyMDE \cite{agrawal2021pymde} is a general minimum-distortion embedding
 framework, configured here with an absolute-distance loss (a modern
 stress-based MDS). PCC (``Preserving Clusters and Correlations'')
-\cite{pcc2025} maximizes the correlation between
-high-D and 2-D distances to a sampled reference set --- a distance-fidelity
-objective with sparse constraints. toorPIA is a closed-source commercial
+\cite{pcc2025} pairs a cluster-observability term with a correlation
+objective between high-D and 2-D distances to a sampled reference set ---
+the latter a distance-fidelity objective with sparse constraints
+(\S\ref{sec:methodsconfig} states the configuration used here). toorPIA is a closed-source commercial
 method described by its vendor as related to the spectral
 Laplacian-eigenmaps family \cite{belkin2003laplacian}; its internal
 algorithm is not public and is not verified here --- this paper
@@ -442,9 +443,14 @@ The seven methods are PCA \cite{hotelling1933pca}, Isomap
 \cite{mcinnes2018umap}, PyMDE \cite{agrawal2021pymde}, PCC \cite{pcc2025},
 and the closed-source toorPIA, all producing 2-D embeddings of the same
 input $X$. The open-source methods run at library defaults (t-SNE
-perplexity 30, UMAP \texttt{n\_neighbors} 15; PCC with its published Pearson
-loss and reference-set size equal to $N$; PyMDE with an absolute-distance
-loss). toorPIA is called through its embedding endpoint
+perplexity 30, UMAP \texttt{n\_neighbors} 15; PyMDE with an
+absolute-distance loss). PCC runs \emph{label-free}
+(\texttt{cluster=False}): as shipped, its cluster-observability term
+consumes caller-supplied cluster assignments, which no method receives in
+this benchmark, so PCC is scored on its published Pearson correlation
+objective alone, with the reference set at its maximum size ($N$, sampled
+with replacement). Every claim about PCC in this paper refers to this
+label-free configuration. toorPIA is called through its embedding endpoint
 (\texttt{basemap\_embedding}, per-row L2 normalization disabled), so it
 embeds the very same raw vectors the other methods see; the endpoint exposes
 no random seed and is deterministic, and its output coordinates are cached
