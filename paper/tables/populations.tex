@@ -1,20 +1,20 @@
 % AUTO-GENERATED from REPORT.md --- do not hand-edit values
 \begin{table}[t]
 \centering
-\caption{Imbalanced two populations (95\% vs.\ 5\%): distance-fidelity ranking at SNR${=}1$.\; Composite points: 1st$\to$5 \dots\ 5th$\to$1 on the full-$\rho$ order and on the near-$\rho$ order; rows sorted by $\Sigma$. $\rho$ columns are Shepard (Spearman) correlations vs.-ambient. \textbf{Bold} = best in column, \textit{italic} = worst; \textsuperscript{\dag} = outright-failure flag (negative near-band $\rho$, or worst tight-cluster crush exceeding $5\times$). Brackets are bootstrap 95\% CIs over $R{=}3$ seeds; deterministic methods (PCA, Isomap, toorPIA) show point values. recall/trust/continuity are the variable-radius $k$-NN reference block (biased; unscored). Values transcribed verbatim from the v1.2.0 committed results.}
+\caption{Imbalanced two populations (95\% vs.\ 5\%): distance-fidelity ranking at SNR${=}1$.\; Composite points: 1st$\to$5 \dots\ 5th$\to$1 on the full-$\rho$ order and on the near-$\rho$ order; rows sorted by $\Sigma$. $\rho$ columns are Shepard (Spearman) correlations vs.-ambient. \textbf{Bold} = best in column, \textit{italic} = worst; \textsuperscript{\dag} = outright-failure flag (negative near-band $\rho$, or worst tight-cluster crush exceeding $5\times$). Brackets are bootstrap 95\% CIs over $R{=}3$ seeds; deterministic methods (PCA, Isomap, DREAMS, toorPIA) show point values. recall/trust/continuity are the variable-radius $k$-NN reference block (biased; unscored). Values transcribed verbatim from the v1.3.0 committed results.}
 \label{tab:populations}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lccccccccc}
 \toprule
 method & full & near & $\Sigma$ & full $\rho$ (global) & near $\rho$ (first-mode) & scale $\times$ & recall@15 & trust@15 & cont.@15 \\
 \midrule
-toorPIA & \textbf{5} & 4 & \textbf{9} & \textbf{0.813} & 0.254 & 0.728 & 0.138 & 0.935 & 0.938 \\
-PCC & 4 & 3 & 7 & 0.761 {\scriptsize[0.753, 0.764]} & 0.225 {\scriptsize[0.222, 0.234]} & 2.496 {\scriptsize[2.309, 2.650]} & 0.133 {\scriptsize[0.132, 0.134]} & 0.933 {\scriptsize[0.930, 0.935]} & 0.923 {\scriptsize[0.922, 0.936]} \\
-t-SNE & 1 & \textbf{5} & 6 & 0.507 {\scriptsize[0.484, 0.518]} & \textbf{0.371 {\scriptsize[0.365, 0.375]}} & 2.415 {\scriptsize[2.355, 2.438]} & \textbf{0.275 {\scriptsize[0.275, 0.276]}} & \textbf{0.948} & \textbf{0.957 {\scriptsize[0.956, 0.957]}} \\
-PCA & 3 & 2 & 5 & 0.608 & 0.136 & 1.273 & \textit{0.080} & \textit{0.771} & 0.867 \\
-PyMDE & 2 & \textit{0} & 2 & 0.595 {\scriptsize[0.594, 0.666]} & 0.103 {\scriptsize[0.089, 0.125]} & 0.343 {\scriptsize[0.299, 3.383]} & 0.104 {\scriptsize[0.103, 0.105]} & 0.853 {\scriptsize[0.817, 0.869]} & \textit{0.773 {\scriptsize[0.756, 0.817]}} \\
-UMAP & \textit{0} & 1 & 1 & 0.445 {\scriptsize[0.411, 0.466]} & 0.108 {\scriptsize[0.104, 0.115]} & 5.407 {\scriptsize[4.442, 5.771]}\,\textsuperscript{\dag} & 0.200 {\scriptsize[0.199, 0.202]} & 0.934 {\scriptsize[0.931, 0.934]} & 0.933 {\scriptsize[0.933, 0.935]} \\
-Isomap & \textit{0} & \textit{0} & \textit{0} & \textit{0.346} & -0.022\,\textsuperscript{\dag} & \textbf{0.913} & 0.096 & 0.883 & 0.879 \\
+toorPIA & \textbf{5} & 3 & \textbf{8} & \textbf{0.813} & 0.254 & 0.728 & 0.138 & 0.935 & 0.938 \\
+DREAMS & 3 & \textbf{5} & \textbf{8} & 0.638 & \textbf{0.469} & 3.322 & 0.253 & \textbf{0.949} & \textbf{0.961} \\
+PCC & 4 & 2 & 6 & 0.761 {\scriptsize[0.753, 0.764]} & 0.225 {\scriptsize[0.222, 0.234]} & 2.496 {\scriptsize[2.309, 2.650]} & 0.133 {\scriptsize[0.132, 0.134]} & 0.933 {\scriptsize[0.930, 0.935]} & 0.923 {\scriptsize[0.922, 0.936]} \\
+t-SNE & \textit{0} & 4 & 4 & 0.507 {\scriptsize[0.484, 0.518]} & 0.371 {\scriptsize[0.365, 0.375]} & 2.415 {\scriptsize[2.355, 2.438]} & \textbf{0.275 {\scriptsize[0.275, 0.276]}} & 0.948 & 0.957 {\scriptsize[0.956, 0.957]} \\
+PCA & 2 & 1 & 3 & 0.608 & 0.136 & 1.273 & \textit{0.080} & \textit{0.771} & 0.867 \\
+PyMDE & 1 & \textit{0} & 1 & 0.595 {\scriptsize[0.594, 0.666]} & 0.103 {\scriptsize[0.089, 0.125]} & 0.343 {\scriptsize[0.299, 3.383]} & 0.104 {\scriptsize[0.103, 0.105]} & 0.853 {\scriptsize[0.817, 0.869]} & \textit{0.773 {\scriptsize[0.756, 0.817]}} \\
+UMAP & \textit{0} & \textit{0} & \textit{0} & 0.445 {\scriptsize[0.411, 0.466]} & 0.108 {\scriptsize[0.104, 0.115]} & 5.407 {\scriptsize[4.442, 5.771]}\,\textsuperscript{\dag} & 0.200 {\scriptsize[0.199, 0.202]} & 0.934 {\scriptsize[0.931, 0.934]} & 0.933 {\scriptsize[0.933, 0.935]} \\
 \bottomrule
 \end{tabular}}%
 \end{table}

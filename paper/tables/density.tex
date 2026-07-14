@@ -1,20 +1,20 @@
 % AUTO-GENERATED from REPORT.md --- do not hand-edit values
 \begin{table}[t]
 \centering
-\caption{Non-uniform density: distance-fidelity ranking at SNR${=}1$.\; Composite points: 1st$\to$5 \dots\ 5th$\to$1 on the full-$\rho$ order and on the near-$\rho$ order; rows sorted by $\Sigma$. $\rho$ columns are Shepard (Spearman) correlations vs.-ambient. \textbf{Bold} = best in column, \textit{italic} = worst; \textsuperscript{\dag} = outright-failure flag (negative near-band $\rho$, or worst tight-cluster crush exceeding $5\times$). Brackets are bootstrap 95\% CIs over $R{=}3$ seeds; deterministic methods (PCA, Isomap, toorPIA) show point values. recall/trust/continuity are the variable-radius $k$-NN reference block (biased; unscored). Values transcribed verbatim from the v1.2.0 committed results.}
+\caption{Non-uniform density: distance-fidelity ranking at SNR${=}1$.\; Composite points: 1st$\to$5 \dots\ 5th$\to$1 on the full-$\rho$ order and on the near-$\rho$ order; rows sorted by $\Sigma$. $\rho$ columns are Shepard (Spearman) correlations vs.-ambient. \textbf{Bold} = best in column, \textit{italic} = worst; \textsuperscript{\dag} = outright-failure flag (negative near-band $\rho$, or worst tight-cluster crush exceeding $5\times$). Brackets are bootstrap 95\% CIs over $R{=}3$ seeds; deterministic methods (PCA, Isomap, DREAMS, toorPIA) show point values. recall/trust/continuity are the variable-radius $k$-NN reference block (biased; unscored). Values transcribed verbatim from the v1.3.0 committed results.}
 \label{tab:density}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lccccccccc}
 \toprule
 method & full & near & $\Sigma$ & full $\rho$ (global) & near $\rho$ (first-mode) & scale $\times$ & recall@15 & trust@15 & cont.@15 \\
 \midrule
-toorPIA & 4 & \textbf{5} & \textbf{9} & 0.815 & \textbf{0.312} & 0.438 & 0.068 & 0.628 & \textbf{0.822} \\
+toorPIA & 4 & 4 & \textbf{8} & 0.815 & 0.312 & 0.438 & 0.068 & 0.628 & \textbf{0.822} \\
+DREAMS & 1 & \textbf{5} & 6 & 0.585 & \textbf{0.363} & 0.239 & 0.245 & \textbf{0.776} & 0.804 \\
 PCC & \textbf{5} & \textit{0} & 5 & \textbf{0.820 {\scriptsize[0.816, 0.824]}} & -0.028 {\scriptsize[-0.047, -0.002]}\,\textsuperscript{\dag} & 93.468 {\scriptsize[93.389, 93.583]}\,\textsuperscript{\dag} & 0.056 {\scriptsize[0.055, 0.059]} & 0.603 {\scriptsize[0.593, 0.604]} & 0.753 {\scriptsize[0.749, 0.759]} \\
-PCA & 3 & 2 & 5 & 0.699 & 0.093 & \textbf{0.728} & 0.069 & 0.628 & 0.785 \\
-PyMDE & 2 & 3 & 5 & 0.598 {\scriptsize[0.598, 0.608]} & 0.218 {\scriptsize[0.202, 0.254]} & 0.460 {\scriptsize[0.419, 0.516]} & \textit{0.043 {\scriptsize[0.041, 0.047]}} & \textit{0.568 {\scriptsize[0.567, 0.570]}} & \textit{0.634 {\scriptsize[0.632, 0.646]}} \\
-t-SNE & \textit{0} & 4 & 4 & 0.300 {\scriptsize[0.277, 0.309]} & 0.260 {\scriptsize[0.259, 0.266]} & 0.215 {\scriptsize[0.214, 0.216]} & \textbf{0.254 {\scriptsize[0.250, 0.259]}} & \textbf{0.773 {\scriptsize[0.770, 0.779]}} & 0.803 {\scriptsize[0.798, 0.803]} \\
-Isomap & 1 & \textit{0} & \textit{1} & 0.559 & -0.038\,\textsuperscript{\dag} & 0.383 & 0.060 & 0.601 & 0.776 \\
-UMAP & \textit{0} & 1 & \textit{1} & \textit{0.156 {\scriptsize[0.154, 0.162]}} & 0.055 {\scriptsize[0.040, 0.057]} & 0.279 {\scriptsize[0.275, 0.283]} & 0.210 {\scriptsize[0.206, 0.213]} & 0.733 {\scriptsize[0.729, 0.734]} & 0.813 {\scriptsize[0.812, 0.815]} \\
+PCA & 3 & 1 & 4 & 0.699 & 0.093 & \textbf{0.728} & 0.069 & 0.628 & 0.785 \\
+PyMDE & 2 & 2 & 4 & 0.598 {\scriptsize[0.598, 0.608]} & 0.218 {\scriptsize[0.202, 0.254]} & 0.460 {\scriptsize[0.419, 0.516]} & \textit{0.043 {\scriptsize[0.041, 0.047]}} & \textit{0.568 {\scriptsize[0.567, 0.570]}} & \textit{0.634 {\scriptsize[0.632, 0.646]}} \\
+t-SNE & \textit{0} & 3 & 3 & 0.300 {\scriptsize[0.277, 0.309]} & 0.260 {\scriptsize[0.259, 0.266]} & 0.215 {\scriptsize[0.214, 0.216]} & \textbf{0.254 {\scriptsize[0.250, 0.259]}} & 0.773 {\scriptsize[0.770, 0.779]} & 0.803 {\scriptsize[0.798, 0.803]} \\
+Isomap & \textit{0} & \textit{0} & \textit{0} & 0.559 & -0.038\,\textsuperscript{\dag} & 0.383 & 0.060 & 0.601 & 0.776 \\
 \bottomrule
 \end{tabular}}%
 \end{table}

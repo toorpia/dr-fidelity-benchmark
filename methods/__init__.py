@@ -6,10 +6,10 @@ distance-preserving methods, then neighbor-preserving methods, then toorPIA.
 from __future__ import annotations
 
 # import side effects populate REGISTRY
-from . import pca, isomap, pymde_method, pcc_method, tsne, umap_method, toorpia_method  # noqa: F401
+from . import pca, isomap, pymde_method, pcc_method, tsne, umap_method, dreams_method, toorpia_method  # noqa: F401
 from .base import REGISTRY, Method, SkipMethod, get_method, list_methods, register
 
-DEFAULT_ORDER = ["PCA", "Isomap", "PyMDE", "PCC", "t-SNE", "UMAP", "toorPIA"]
+DEFAULT_ORDER = ["PCA", "Isomap", "PyMDE", "PCC", "t-SNE", "UMAP", "DREAMS", "toorPIA"]
 
 
 def default_methods() -> list[str]:

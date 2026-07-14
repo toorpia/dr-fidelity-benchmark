@@ -19,7 +19,11 @@ torch==2.3.0
 umap-learn==0.5.12
 pymde==0.3.0
 pccdr==1.0.3
-openTSNE==1.0.4
+# DREAMS: the authors' openTSNE fork (installs AS openTSNE, version 1.0.2 + regularization;
+# nothing else in this repo imports openTSNE, so the swap affects only methods/dreams_method.py).
+# The tp head (eeea6a6) has a fit()-crashing bug patched at import time in the wrapper — see
+# methods/dreams_method.py. Without this install, DREAMS is skipped gracefully (SkipMethod).
+# pip install "git+https://github.com/berenslab/DREAMS.git@tp"
 
 # tests
 pytest>=7.0

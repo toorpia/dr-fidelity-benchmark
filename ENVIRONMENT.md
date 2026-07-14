@@ -14,7 +14,7 @@
 | umap | 0.5.12 |
 | pymde | 0.3.0 |
 | pcc | installed (version unknown) |
-| openTSNE | 1.0.4 |
-| toorpia | 1.2.0 |
+| openTSNE | 1.0.2 |
+| toorpia | installed (version unknown) |
 
 Recorded automatically by `run/environment.py` at benchmark runtime. Pinned versions are in `requirements.txt`.

@@ -89,10 +89,10 @@ def make_note(extra):
             r"worst; \textsuperscript{\dag} = outright-failure flag (negative "
             r"near-band $\rho$, or worst tight-cluster crush exceeding "
             r"$5\times$). Brackets are bootstrap 95\% CIs over $R{=}3$ seeds; "
-            r"deterministic methods (PCA, Isomap, toorPIA) show point values. "
+            r"deterministic methods (PCA, Isomap, DREAMS, toorPIA) show point values. "
             r"recall/trust/continuity are the variable-radius $k$-NN reference "
             r"block (biased; unscored). Values transcribed verbatim from the "
-            r"v1.2.0 committed results.")
+            r"v1.3.0 committed results.")
 
 
 def main():
@@ -145,10 +145,12 @@ def main():
            "anomaly distance from the map centroid over the bulk's median "
            "radius (large $=$ visibly outside); attribution $=$ direction "
            "from the centroid identifies the source cluster. PCA/Isomap use "
-           "\\texttt{transform}; UMAP a seeded \\texttt{transform}; toorPIA "
+           "\\texttt{transform}; UMAP a seeded \\texttt{transform}; DREAMS "
+           "openTSNE's partial-optimization \\texttt{transform} (one point "
+           "per call; its regularization acts only at fit time); toorPIA "
            "server-side \\texttt{addplot\\_embedding}. t-SNE, PyMDE, and PCC "
            "expose no out-of-sample operation. Values transcribed verbatim "
-           "from the v1.2.0 committed results.}\n"
+           "from the v1.3.0 committed results.}\n"
            "\\label{tab:addplot}\n"
            "\\resizebox{\\textwidth}{!}{%\n"
            "\\begin{tabular}{lcccccc}\n\\toprule\n"
