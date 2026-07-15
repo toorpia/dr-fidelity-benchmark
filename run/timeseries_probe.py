@@ -46,7 +46,26 @@ def set_seeds(seed):
     np.random.seed(int(seed)); torch.manual_seed(int(seed))
 
 
-def trajectory_metrics(d_hd, d_2d, series, t, lag):
+def median_tortuosity(P, series, w):
+    """Median path/chord ratio over all sliding |Δt|=w windows within each series.
+
+    ``path`` is the sum of the w consecutive step lengths, ``chord`` the straight-line distance
+    between the window's endpoints. A diffusive (jagged) trajectory has path/chord ≈ √w; a
+    smoothed (ballistic) rendering has path/chord ≈ 1 — the value-level signature of the
+    saw-tooth that rank statistics cannot see."""
+    taus = []
+    for s in np.unique(series):
+        seg = np.asarray(P)[series == s]
+        step = np.linalg.norm(np.diff(seg, axis=0), axis=1)
+        cs = np.concatenate([[0.0], np.cumsum(step)])
+        path = cs[w:] - cs[:-w]
+        chord = np.linalg.norm(seg[w:] - seg[:-w], axis=1)
+        ok = chord > 0
+        taus.append(path[ok] / chord[ok])
+    return float(np.median(np.concatenate(taus)))
+
+
+def trajectory_metrics(d_hd, d_2d, series, t, lag, X=None, Y=None):
     n = len(series)
     iu = np.triu_indices(n, 1)
     same = series[iu[0]] == series[iu[1]]
@@ -57,6 +76,13 @@ def trajectory_metrics(d_hd, d_2d, series, t, lag):
         "within_series_near_shepard": float(spearmanr(d_hd[near], d_2d[near]).statistic),
         "cross_series_shepard": float(spearmanr(d_hd[~same], d_2d[~same]).statistic),
     }
+    if X is not None and Y is not None:
+        # saw-tooth preservation: excess tortuosity of the 2-D trajectory over |Δt|=lag windows,
+        # normalized by the high-D trajectory's own excess tortuosity (1 = the data's roughness
+        # fully rendered, 0 = smoothed to a ballistic ribbon)
+        tau_hd = median_tortuosity(X, series, lag)
+        tau_2d = median_tortuosity(Y, series, lag)
+        out["step_structure"] = float((tau_2d - 1.0) / (tau_hd - 1.0))
     return out
 
 
@@ -64,7 +90,7 @@ def main(argv=None):
     p = argparse.ArgumentParser(description="time-series probe (multi-series random walks)")
     p.add_argument("--ndim", type=int, default=50)
     p.add_argument("--npoints", type=int, default=500)
-    p.add_argument("--n-series", type=int, default=6)
+    p.add_argument("--n-series", type=int, default=8)
     p.add_argument("--step", type=float, default=0.001)
     p.add_argument("--lag", type=int, default=20,
                    help="time-lag window of the LOCAL (saw-tooth) readout")
@@ -106,7 +132,7 @@ def main(argv=None):
                 gallery[method] = Y
             row = dict(dataset="random_walk", snr=float("inf"), method=method, seed=seed,
                        stochastic=m.stochastic, n=len(X), d=args.ndim)
-            row.update(trajectory_metrics(d_hd, pdist(Y), series, t, args.lag))
+            row.update(trajectory_metrics(d_hd, pdist(Y), series, t, args.lag, X=X, Y=Y))
             rows.append(row); k += 1
         if k:
             print(f"  {method:16s} runs={k}", flush=True)

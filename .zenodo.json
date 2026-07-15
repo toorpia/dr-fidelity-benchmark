@@ -8,7 +8,7 @@
       "affiliation": "toor Inc."
     }
   ],
-  "description": "A reproducible benchmark characterizing how faithfully dimensionality-reduction (DR) methods — PCA, Isomap, t-SNE, UMAP, PyMDE, PCC, and toorPIA — preserve distance structure when mapping high-dimensional data to 2D, on synthetic datasets whose true geometry is known. Near and global distance bands are evaluated separately via band-restricted Shepard correlation (fixed absolute radius), with additional out-of-sample (addplot) and stability tests. Results report: <a href=\"https://toorpia.github.io/dr-fidelity-benchmark/\">https://toorpia.github.io/dr-fidelity-benchmark/</a>",
+  "description": "A reproducible benchmark characterizing how faithfully dimensionality-reduction (DR) methods — PCA, Isomap, t-SNE, UMAP, PyMDE, PCC, DREAMS, and toorPIA — preserve distance structure when mapping high-dimensional data to 2D, on synthetic datasets whose true geometry is known. Near and global distance bands are evaluated separately via band-restricted Shepard correlation (fixed absolute radius), with additional out-of-sample (addplot) and stability tests. Results report: <a href=\"https://toorpia.github.io/dr-fidelity-benchmark/\">https://toorpia.github.io/dr-fidelity-benchmark/</a>",
   "keywords": [
     "dimensionality reduction",
     "benchmark",

@@ -16,7 +16,7 @@ from metrics.distances import DEFAULT_CUTOFFS, band_thresholds, condensed_distan
 
 _METHOD_COLORS = {
     "PCA": "#1f77b4", "Isomap": "#17becf", "PyMDE": "#2ca02c", "PCC": "#9467bd",
-    "t-SNE": "#ff7f0e", "UMAP": "#d62728", "toorPIA": "#000000",
+    "t-SNE": "#ff7f0e", "UMAP": "#d62728", "DREAMS": "#e377c2", "toorPIA": "#000000",
     # the noise-dims supplement shows toorPIA through both of its endpoints
     "toorPIA (basemap_csvform)": "#000000", "toorPIA (basemap_embedding)": "#7f7f7f",
 }

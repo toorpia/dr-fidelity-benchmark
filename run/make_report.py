@@ -62,11 +62,18 @@ TABLE_GROUPS = [
 # matter how well it orders the pairs among the normal points — so local readings can never outrank the baseline.
 RANK_KEYS = [("shepard_near__vs_ambient", "__pts_near"), ("full_shepard", "__pts_full")]
 OUTLIER_RANK_KEY = ("outlier_shepard__vs_ambient", "__pts_out")
+MINORITY_RANK_KEY = ("minority_shepard__vs_ambient", "__pts_min")
 
 # Extra column group shown only for the outliers dataset: the outlier-pair Shepard ρ that feeds
 # the third ranking column above.
 OUTLIER_GROUP = ("osp", "Outlier pairs — standard Shepard ρ over anomaly-involving pairs", [
     ("outlier_shepard__vs_ambient", "outlier ρ", True),
+])
+
+# Extra column group shown only for the populations dataset: the minority-pair Shepard ρ
+# (standard ρ over the minority-involving pairs) that feeds its third ranking column.
+MINORITY_GROUP = ("osp", "Minority pairs — standard Shepard ρ over minority-involving pairs", [
+    ("minority_shepard__vs_ambient", "minority ρ", True),
 ])
 
 
@@ -126,9 +133,12 @@ DATASET_BLURB = {
                    "pairs ([minority]-[minority] plus [minority]-[majority] — one number that "
                    "drops if either reading fails). Beware the failure is SILENT: the global ρ "
                    "(left panel, and the table below) can stay high while the minority-pair ρ "
-                   "(right panel) collapses. The table keeps the benchmark's standard two-sided "
-                   "evaluation (global + local Shepard bands); the per-method "
-                   "membership-restricted ρ values are in the results CSVs.",
+                   "(right panel) collapses. That minority-pair ρ appears in the table as its "
+                   "own column and feeds the ranking score as a third 5..1 column — the same "
+                   "construction as the outliers dataset's outlier ρ — so a method that erases "
+                   "or misplaces the minority scores low no matter how well it orders the "
+                   "majority pairs; the full membership-restricted ρ family (within-majority / "
+                   "within-minority / cross-population) is in the results CSVs.",
 }
 
 
@@ -166,7 +176,8 @@ def ranking_points(agg, dataset, snr, methods):
     """Composite ranking points: for full Shepard ρ AND the first-mode near-band ρ — plus, on the
     outliers dataset, the anomaly-pair Shepard ρ — the 1st..5th method gets 5,4,3,2,1 points
     (others 0); the total is their sum. Returns ``{method: {__pts_*: int}}``."""
-    rank_keys = list(RANK_KEYS) + ([OUTLIER_RANK_KEY] if dataset == "outliers" else [])
+    rank_keys = (list(RANK_KEYS) + ([OUTLIER_RANK_KEY] if dataset == "outliers" else [])
+                 + ([MINORITY_RANK_KEY] if dataset == "populations" else []))
     pts = {m: {pk: 0 for _, pk in rank_keys} for m in methods}
     for metric_key, pts_key in rank_keys:
         ranked = sorted(((m, cell(agg, dataset, snr, m, metric_key)) for m in methods),
@@ -180,11 +191,17 @@ def ranking_points(agg, dataset, snr, methods):
 
 
 def ranking_table(agg, dataset, snr):
-    groups = TABLE_GROUPS + ([OUTLIER_GROUP] if dataset == "outliers" else [])
+    groups = (TABLE_GROUPS + ([OUTLIER_GROUP] if dataset == "outliers" else [])
+              + ([MINORITY_GROUP] if dataset == "populations" else []))
     if dataset == "outliers":
         # the rank group gains the outlier-pair-ρ points column (same 5..1 scheme)
         kind, label, items = groups[0]
         items = items[:-1] + [("__pts_out", "outlier pts", True)] + items[-1:]
+        groups = [(kind, label, items)] + groups[1:]
+    if dataset == "populations":
+        # the rank group gains the minority-pair-ρ points column (same 5..1 scheme)
+        kind, label, items = groups[0]
+        items = items[:-1] + [("__pts_min", "minority pts", True)] + items[-1:]
         groups = [(kind, label, items)] + groups[1:]
     methods = [m for m in METHOD_ORDER
                if ((agg.dataset == dataset) & (agg.snr == snr) & (agg.method == m)).any()]
@@ -254,7 +271,8 @@ def ranking_table(agg, dataset, snr):
                     (k == "shepard_near__vs_ambient" and n < 0)
                     or (k == "tight_over_compression" and col_max is not None
                         and n == col_max and n > 5)
-                    or (k == "outlier_shepard__vs_ambient" and n < 0))
+                    or (k == "outlier_shepard__vs_ambient" and n < 0)
+                    or (k == "minority_shepard__vs_ambient" and n < 0))
                 if force_red:
                     cls.append("crit")          # darker red than rank-worst — an outright failure
                 elif n is not None and k in best:
@@ -364,8 +382,9 @@ def figure_block(dataset, snr, embed):
              "(placement rank-uninformative, cross ρ 0.20), t-SNE fuses its five clusters into "
              "one tiny clump set apart, UMAP scatters them as islands along the map edge, "
              "DREAMS draws it as one coherent clump flung to an arbitrary distance (internal "
-             "structure intact, minB ρ 0.65; placement rank-uninformative, cross ρ 0.07 — the "
-             "composite Σ ties toorPIA's while the reading the dataset tests still fails), "
+             "structure intact, minB ρ 0.65; placement rank-uninformative, cross ρ 0.07 and "
+             "minority-pair ρ 0.14 — the scored minority column prices that failure into its "
+             "Σ), "
              "toorPIA keeps it a recognizable group with internal structure"),
             ("populations_sweep_curve.png",
              "Sweep vs minority fraction (SNR=1, CI bands): global Shepard ρ and the "
@@ -387,7 +406,7 @@ def figure_block(dataset, snr, embed):
              "anomalies faithfully INCLUDING the relations among them: each same-kind a/b pair "
              "lands adjacent and co-directional (pair angle ≤ 10°), the three kinds point to "
              "three separate directions well away from the bulk, and the bulk's 5-cluster layout "
-             "is kept — the picture behind its outlier ρ 0.615 (1st) and global ρ 0.759 (1st). "
+             "is kept — the picture behind its outlier ρ 0.649 (1st) and global ρ 0.768 (1st). "
              "PCA and Isomap drop the anomalies onto the bulk clusters; PyMDE tears same-kind "
              "pairs to opposite ends of the map and fuses different kinds; PCC keeps the bulk "
              "clean but throws same-kind pair members to different corners (angles ≈ 86°); t-SNE "
@@ -434,7 +453,7 @@ def random_walk_section(embed: bool) -> str:
     COLS = [("full_shepard", "full · all pairs"),
             ("cross_series_shepard", "cross-series · star arrangement (GLOBAL)"),
             ("within_series_shepard", "within-series · trajectory shape"),
-            ("within_series_near_shepard", "within-series near |Δt|≤20 · step structure (LOCAL)")]
+            ("step_structure", "saw-tooth · |Δt|=20 roughness vs the data's own (LOCAL; 1 = truth)")]
 
     def cellv(m, k):
         r = agg[(agg.method == m) & (agg.metric == k)]
@@ -446,14 +465,21 @@ def random_walk_section(embed: bool) -> str:
 
     methods = [m for m in METHOD_ORDER if (agg.method == m).any()]
     numeric = {m: {k: cellv(m, k)[0] for k, _ in COLS} for m in methods}
-    best = {k: max(v[k] for v in numeric.values() if v[k] is not None) for k, _ in COLS}
-    worst = {k: min(v[k] for v in numeric.values() if v[k] is not None) for k, _ in COLS}
+    # the saw-tooth column's ideal is 1 (the data's own roughness): closest-to-1 is best,
+    # farthest is worst; the ρ columns are plain higher-is-better
+    def _bad(k, v):
+        return abs(v - 1.0) if k == "step_structure" else -v
+    best = {k: min((v[k] for v in numeric.values() if v[k] is not None),
+                   key=lambda x: _bad(k, x)) for k, _ in COLS}
+    worst = {k: max((v[k] for v in numeric.values() if v[k] is not None),
+                    key=lambda x: _bad(k, x)) for k, _ in COLS}
     methods = sorted(methods, key=lambda m: -(numeric[m]["full_shepard"] or -1e9))
 
     sub = "".join(f"<th class='sub-primary'>{html.escape(h)}</th>" for _, h in COLS)
     head = (f"<tr><th class='method' rowspan='2'>method</th>"
-            f"<th class='grp grp-primary' colspan='{len(COLS)}'>Trajectory Shepard ρ — the "
-            f"standard statistic, pairs split by (series, time) membership</th></tr>"
+            f"<th class='grp grp-primary' colspan='{len(COLS)}'>Trajectory readouts — Shepard ρ "
+            f"with pairs split by (series, time) membership, plus the value-level saw-tooth "
+            f"score</th></tr>"
             f"<tr>{sub}</tr>")
     body = []
     for m in methods:
@@ -470,9 +496,9 @@ def random_walk_section(embed: bool) -> str:
         "<h2 id='random-walk'>time series — multi-series high-D random walks (continuous "
         "change, no clusters)</h2>"
         "<p class='blurb'>Theme: <b>trajectory rendering — the shape of multivariate "
-        "time-series data.</b> Six independent random walks in D=50 (each time step adds an "
+        "time-series data.</b> Eight independent random walks in D=50 (each time step adds an "
         "independent uniform displacement in every dimension; all series start at the origin) "
-        "are concatenated into one dataset of 6 × 500 = 3000 points and embedded together. "
+        "are concatenated into one dataset of 8 × 500 = 4000 points and embedded together. "
         "This is the regime that real multivariate monitoring data lives in — process sensors, "
         "equipment logs, longitudinal measurements: <b>OPEN, filamentary trajectories indexed "
         "by (series, time), with no clusters at all</b> — the structural opposite of the five "
@@ -492,11 +518,11 @@ def random_walk_section(embed: bool) -> str:
         "(panel 3, blue) — so the trajectory is JAGGED at every single step and never smooths "
         "into a curve. <b>(3) Mutually orthogonal series (global):</b> the same "
         "near-orthogonality holds between the position vectors of different series (panel 3, "
-        "red), so the six walks radiate along mutually perpendicular directions and never "
+        "red), so the eight walks radiate along mutually perpendicular directions and never "
         "approach one another — every cross-series distance obeys the Pythagorean relation "
         "d ≈ √(r_i² + r_j²) (panel 4). The true shape is therefore a "
-        "<b>star of six jagged spokes radiating from the shared origin at mutual right "
-        "angles</b>. Six mutually orthogonal directions cannot all be drawn at right angles "
+        "<b>star of eight jagged spokes radiating from the shared origin at mutual right "
+        "angles</b>. Eight mutually orthogonal directions cannot all be drawn at right angles "
         "on paper — but a faithful 2-D map must still render what CAN be rendered: one shared "
         "origin with the series fanning out separately (never crossing), monotone outward "
         "time order along each spoke, and the saw-tooth jitter on top of every spoke.</p>"
@@ -515,51 +541,72 @@ def random_walk_section(embed: bool) -> str:
         + img("random_walk", "trajectory_gallery.png", embed)
         + "<figcaption>2-D maps, points colored by time (dark = early, yellow = late; squares "
         "= series end points). Read against the three facts above. toorPIA renders the full "
-        "truth — six jagged spokes radiating separately from one shared origin with clean "
-        "outward time order (the picture behind its leading within-series 0.970 / "
-        "cross-series 0.897 / full 0.924 ρ). PCA and PyMDE keep the radial fan but tangle it "
-        "near the origin (PyMDE also scatters fragments of one series). PCC draws a clean "
-        "six-spoke star but STRAIGHTENS the spokes — the saw-tooth jitter is visibly smoothed "
-        "away (its step-structure ρ 0.470 is the lowest of all eight) — and throws a detached "
-        "patch of one series across the map. Isomap collapses each walk to a nearly straight "
-        "ray. DREAMS recovers the six-way radial arrangement (cross-series 0.778, second "
-        "only to toorPIA) with clean outward time order (0.952) — but the shared origin is "
-        "rendered only partly: every series' t=0 point does land at the common center, yet "
-        "two of the six spokes detach from it within the first plotted steps (their ribbons "
-        "jump to ≈18% and ≈6% of their spoke length before the next point is drawn, leaving "
-        "a visible gap at the base), and all six spokes are smooth, "
-        "wavy ribbons: the saw-tooth jitter amplitude is erased, exactly the value-level "
-        "information a rank statistic cannot see. t-SNE and UMAP cut the walks into smooth, "
+        "truth — eight jagged spokes radiating separately from one shared origin with clean "
+        "outward time order and the saw-tooth intact (score 0.71 of the data's own roughness; "
+        "the picture behind its leading within-series 0.966 / "
+        "cross-series 0.871 / full 0.893 ρ). PCA and PyMDE keep the radial fan but tangle it "
+        "near the origin — PCA's linear projection preserves the saw-tooth best of all "
+        "(0.86) while overlapping the series; PyMDE over-roughens it (1.29) and scatters "
+        "detached fragments of several series. PCC "
+        "draws a clean "
+        "eight-spoke star but STRAIGHTENS the spokes — the saw-tooth is visibly "
+        "smoothed "
+        "away (score 0.44: less than half the data's roughness survives) and it "
+        "strands three isolated points far off their trajectories (nearest-neighbor distance "
+        "> 20× the map's median point spacing) — which "
+        "is what separates it from toorPIA despite its second-best full / within / cross ρ "
+        "(0.877 / 0.950 / 0.860). Isomap collapses each walk to a nearly straight "
+        "ray (saw-tooth 0.01). DREAMS recovers the radial arrangement with clean outward "
+        "time order — "
+        "but like t-SNE and UMAP it CUTS the trajectories: the spokes break into "
+        "disconnected ribbon fragments (5 mid-trajectory gaps exceeding 5% of a spoke's "
+        "length), and the connection at the shared origin fails as well — "
+        "three of the eight spokes detach from the center within the first plotted steps "
+        "(jumps of 8–14% of their spoke length before the next point is drawn, leaving "
+        "a visible gap at the base); its cross-series ρ (0.691) trails PCC and PyMDE. "
+        "t-SNE and UMAP cut the walks into smooth, "
         "disconnected ribbons scattered over "
-        "the canvas: the time order along each fragment is beautifully preserved — t-SNE and "
-        "DREAMS share the step-structure lead (0.951 / 0.952; UMAP 0.885), a rank statistic "
-        "that smoothing does not "
-        "hurt — but for t-SNE and UMAP the shared origin and the radial arrangement are gone "
-        "(cross-series ρ 0.366 / 0.477, the two lowest), and the jitter amplitude, which the "
-        "rank statistic cannot see, is erased from the picture.</figcaption></figure></div>"
+        "the canvas, with the shared origin and the radial arrangement gone "
+        "(cross-series ρ 0.353 / 0.407, the two lowest). For all three the saw-tooth column "
+        "is the verdict the rank statistics cannot deliver: the time order along each "
+        "fragment is preserved (their |Δt| ≤ 20 rank correlation stays at 0.87–0.95, in the "
+        "CSVs), yet the jitter amplitude itself is erased — <b>saw-tooth 0.00 for t-SNE, "
+        "UMAP, and DREAMS alike</b>.</figcaption></figure></div>"
         + table +
         "<p class='note'><b>Honest notes.</b> (1) <b>Same footing as the five datasets "
         "above:</b> toorPIA runs through the identical deterministic "
         "<code>basemap_embedding(l2_normalization=False)</code> endpoint (coordinates "
         "committed under <code>external_embeddings/random_walk/</code> — offline replay, no "
         "API key needed); stochastic methods use R=3 seeds and brackets are bootstrap 95% "
-        "CIs. (2) <b>Parameters:</b> D=50, 6 series × 500 steps, and NO added noise: the "
+        "CIs. (2) <b>Parameters:</b> D=50, 8 series × 500 steps, and NO added noise: the "
         "walk's own randomness IS the data, and the walk is generated directly in the ambient "
         "space, so the ground truth is the ambient geometry itself (vs-truth ≡ vs-ambient) — "
         "there is no separate latent space or SNR knob to harmonize with the main grid. D=50 "
         "already places the geometry deep in the high-dimensional regime (the angle spread "
         "around 90° is ~1/√D ≈ 8°); raising D only tightens the concentration. (3) "
-        "<b>Columns:</b> the standard Spearman ρ with the pair set selected by (series, time) "
+        "<b>Columns:</b> the three ρ columns are the standard Spearman ρ with the pair set "
+        "selected by (series, time) "
         "membership — the same construction as the outlier ρ and the minority-pair ρ: "
-        "<i>within-series</i> = both endpoints in the same series; <i>within-series near</i> "
-        "= same series and |Δt| ≤ 20 steps (the step-level saw-tooth; the time-lag window "
-        "replaces the distance-percentile near band because here \"local\" is defined by "
-        "time, not by a mode of the distance profile); <i>cross-series</i> = endpoints in "
-        "different series (the star arrangement); <i>full</i> = all pairs. (4) No composite "
+        "<i>within-series</i> = both endpoints in the same series; <i>cross-series</i> = "
+        "endpoints in "
+        "different series (the star arrangement); <i>full</i> = all pairs. The "
+        "<i>saw-tooth</i> column is deliberately NOT a rank statistic: a smoothed ribbon "
+        "keeps the |Δt|-ordering of within-series distances perfectly, so a Spearman ρ over "
+        "near pairs stays high even when the zigzag is erased (the |Δt| ≤ 20 rank column, "
+        "<code>within_series_near_shepard</code>, remains in the CSVs and reads 0.87–0.95 "
+        "for the very methods whose maps show no jitter at all — it measures local time "
+        "ORDER, not step structure). The saw-tooth score is the value-level roughness "
+        "instead: over every sliding |Δt| = 20 window of each series, the path length (the "
+        "sum of the 20 step lengths) divided by the chord (the window's endpoint distance); "
+        "the data's own trajectories give path/chord ≈ √20 ≈ 4.5 (diffusive), a fully "
+        "smoothed rendering gives ≈ 1 (ballistic). The score is the median "
+        "(path/chord<sub>2D</sub> − 1)/(path/chord<sub>HD</sub> − 1): 1 = the map reproduces "
+        "the data's roughness, 0 = the zigzag is gone, > 1 = rougher than the data. "
+        "(4) No composite "
         "ranking points on this table — the split columns are the reading (rows are ordered "
         "by the full ρ; best per column green, worst light red as everywhere). (5) "
         "<b>Reproduce:</b> <code>python run/timeseries_probe.py</code> (defaults: "
-        "<code>--ndim 50 --npoints 500 --n-series 6 --lag 20 --seeds 3</code>).</p>")
+        "<code>--ndim 50 --npoints 500 --n-series 8 --lag 20 --seeds 3</code>).</p>")
 
 
 def noise_dims_section(embed: bool) -> str:
@@ -578,7 +625,7 @@ def noise_dims_section(embed: bool) -> str:
     row_order = ([m for m in METHOD_ORDER if m != "toorPIA"]
                  + ["toorPIA (basemap_embedding)", "toorPIA (basemap_csvform)"])
     dims_avail = sorted(int(d) for d in agg["dim"].unique())
-    landmark = [d for d in (6, 40, 80, 200, 250, 300, 768, 1500, 2000)
+    landmark = [d for d in (6, 40, 80, 200, 300, 400, 500, 768, 2000, 6000)
                 if d in dims_avail] or dims_avail[:5]
     knn_keys = sorted({str(m) for m in agg["metric"].unique() if str(m).startswith("knn_acc_k")})
     if not knn_keys:
@@ -615,12 +662,17 @@ def noise_dims_section(embed: bool) -> str:
         "toorPIA under noise dimensions. <b>Stage 1:</b> on the same footing as the main "
         "benchmark — the raw-geometry <code>basemap_embedding</code> endpoint — toorPIA already "
         "tolerates noise dimensions better than every generic method. <b>Stage 2:</b> toorPIA "
-        "additionally ships <code>basemap_csvform</code>, its <b>default endpoint for CSV/tabular "
-        "data analysis</b> (a distinct pipeline with per-item preprocessing), and that endpoint "
-        "shows an extraordinary tolerance to noise dimensions — it is essentially indifferent to "
-        "them out to hundreds of pure-noise columns. This second point is what a practitioner "
-        "needs for real tabular data, where irrelevant columns are numerous and their number is "
-        "unknown in advance — and it is the reason this probe is a supplement rather than a sixth "
+        "additionally ships <code>basemap_csvform</code> — <b>the toorPIA product's standard "
+        "analysis pipeline for CSV/tabular data</b>: the per-item preprocessing that production "
+        "deployments apply to real measurement tables (manufacturing-process sensor data and "
+        "the like) before mapping. In real operation this is the endpoint an analyst calls, and "
+        "it is where toorPIA's noise tolerance is realized in practice: the endpoint is "
+        "essentially indifferent to pure-noise columns out to the thousands. Because that "
+        "pipeline preprocesses the input, its rows are shown <b>for reference</b> — not a "
+        "same-footing raw-geometry comparison (Stage 1 is the same-footing arm) — but they "
+        "answer what a practitioner needs to know for real tabular data, where irrelevant "
+        "columns are numerous and their number is unknown in advance. This two-stage appeal is "
+        "the reason this probe is a supplement rather than a sixth "
         "dataset row. <b>Two noise regimes.</b> The five datasets above share one deliberately "
         "noise-friendly design: the random orthonormal projection spreads every latent factor "
         "across all D=768 ambient columns (D-fold redundancy), so the driver's isotropic noise "
@@ -636,19 +688,21 @@ def noise_dims_section(embed: bool) -> str:
         "directly on the raw D-dimensional features</b> (the ambient baseline: what a "
         "practitioner gets with no dimensionality reduction at all). <b>Stage-1 reading "
         "(same endpoint as the main benchmark):</b> the seven generic methods collapse between "
-        "D≈40 and 400 (DREAMS is the most resistant of them — kNN accuracy 0.59 at D=200, "
-        "skill ratio ≈ 0.6 — but it too is at chance by D≈400, 0.38); "
-        "<code>basemap_embedding</code> instead tracks the ambient baseline itself "
-        "(skill ratio ≈ 1: the 2-D map delivers essentially everything the raw feature space's "
-        "neighborhoods still contain) and at D=200 stands at <b>0.75 vs ≤ 0.61</b> for the best "
-        "generic method; its own breaking regime starts later (D≈250–400, "
-        "realization-sensitive: 0.57 / 0.33 / 0.44 at D=250/300/400). <b>Stage-2 reading:</b> "
+        "D≈40 and 300 (DREAMS is the most resistant of them — kNN accuracy 0.59 at D=200, "
+        "skill ratio ≈ 0.6 — but it sits near chance from D≈400, 0.38–0.43); "
+        "<code>basemap_embedding</code> holds the cluster reading deep into that collapse: at "
+        "D=200 it stands at <b>0.92 vs ≤ 0.59</b> for the best generic method — above the "
+        "ambient baseline itself (0.75; skill ratio ≈ 1.4: the 2-D map is more class-readable "
+        "than the raw 200-dim features) — with its own breaking regime at D≈300–500 "
+        "(0.77 / 0.46 / 0.57 at D=300/400/500, one noise realization per D), reaching chance "
+        "at D=768 (0.36). <b>Stage-2 reading:</b> "
         "<code>basemap_csvform</code> is unaffected where every raw-geometry method — toorPIA's "
-        "own embedding endpoint included — has already collapsed: <b>1.00 at D=200–300, 0.99 at "
-        "D=400, 0.98 at D=768</b> (effective SNR ≈ 0.004), 0.92 at D=1500, first breaking at "
-        "D=2000. Its skill ratio grows to ≈ 2.8 at D=768 and ≈ 3.9 at D=1500 — the 2-D map reads "
-        "roughly three to four times more above-chance class signal than kNN on the raw features "
-        "themselves. The probe is deliberately NOT a sixth registry dataset: its ground truth "
+        "own embedding endpoint included — has already collapsed: <b>≥ 0.99 from D=200 through "
+        "D=768</b> (effective SNR ≈ 0.004), <b>0.95 at D=2000, and still 0.82 at D=6000</b> — "
+        "5997 pure-noise columns, effective SNR ≈ 0.0005, every noise realization well above "
+        "chance. Its skill ratio grows to ≈ 2.9 at D=768, ≈ 5.8 at D=2000, and ≈ 7.2 at D=6000 "
+        "— the 2-D map reads several times more above-chance class signal than kNN on the raw "
+        "features themselves. The probe is deliberately NOT a sixth registry dataset: its ground truth "
         "(the 3 signal columns) is intentionally not isometric to the ambient features, and "
         "distance-band Shepard ρ is deliberately not shown here: a global ρ is only meaningful "
         "paired with its near band (the point of this benchmark's methodology), and neither band "
@@ -665,56 +719,64 @@ def noise_dims_section(embed: bool) -> str:
                      "baseline — ratio 1 = as class-readable as the raw feature space itself. "
                      "toorPIA's two endpoints are the solid lines (generic methods dashed): "
                      "basemap_embedding (grey) "
-                     "tracks the ambient baseline until its breaking regime at D≈250–400; "
+                     "runs above the ambient baseline until its breaking regime at D≈300–500; "
                      "basemap_csvform (black) is unaffected out to D=768 and reaches skill "
-                     "ratio ≈ 3.9 at D=1500. The D=1500 and D=2000 points pool 5 noise "
+                     "ratio ≈ 7.2 at D=6000. The D=2000 and D=6000 points pool 5 noise "
                      "realizations × 3 method seeds each, so their ribbons show realization "
                      "spread.", embed)
         + figure_one("noise_dims", "dims_grid.png",
                      "2-D embeddings at landmark dimensions, 3 true clusters colored — watch "
-                     "where each method's clusters dissolve as noise dimensions are added. The "
+                     "where each method's clusters dissolve as noise dimensions are added "
+                     "(generic methods shown to D=500). The "
                      "last two rows are toorPIA's two endpoints: basemap_embedding dissolves in "
-                     "the D≈250–400 breaking regime like a raw-geometry method, while "
-                     "basemap_csvform keeps the three clusters cleanly separated through "
-                     "D=768.", embed)
+                     "the D≈300–500 breaking regime like a raw-geometry method, while "
+                     "basemap_csvform keeps the three clusters cleanly separated at every "
+                     "dimension shown — its right-most panel is the D=6000 map (5997 pure-noise "
+                     "columns), the extension only that endpoint reaches.", embed)
         + "<p class='note'><b>Honest notes.</b> (1) <b>Endpoints:</b> the "
-        "<code>basemap_csvform</code> rows drive the default CSV-analysis pipeline (it exposes "
-        "<code>random_seed</code>, hence R=3 seeds and CI brackets; the sweep drives the same "
-        "engine through its DataFrame form — spot-verified against a direct "
-        "<code>basemap_csvform</code> call at D=768: pairwise-distance ρ 0.998, kNN accuracy "
-        "0.975 vs 0.976; committed coordinates under "
+        "<code>basemap_csvform</code> rows drive the toorPIA product's standard tabular-data "
+        "analysis pipeline — the processing production deployments apply to real data — and "
+        "are included as the reference reading (its preprocessing differs from the raw "
+        "vectors every other row receives, so it is not a same-footing comparison). The sweep "
+        "calls it directly on "
+        "the generated CSV (explicit per-column float type/weight options replicate the "
+        "client's DataFrame auto-detection; it exposes <code>random_seed</code>, hence R=3 "
+        "seeds and CI brackets; committed coordinates under "
         "<code>external_embeddings/noise_dims/toorpia/fit/</code>). The "
         "<code>basemap_embedding</code> rows drive the deterministic raw-geometry endpoint the "
         "main benchmark uses (single run per D; coordinates under "
         "<code>external_embeddings/noise_dims/toorpia/embedding/</code>; tables in "
         "<code>results/dimsweep_embedding_*.csv</code>). Each D is one noise realization, so "
         "values inside a breaking regime fluctuate between adjacent D (the embedding endpoint's "
-        "0.57 / 0.33 / 0.44 at D=250/300/400 is that fluctuation, not a recovery). "
+        "0.77 / 0.46 / 0.57 at D=300/400/500 is that fluctuation, not a recovery). "
         "(1b) <b>Ambient baseline / skill ratio:</b> the baseline is leave-one-out kNN run "
         "directly on the raw standardized D-dim features — an operational reference (what no "
         "dimensionality reduction at all would give), not an information ceiling. The ratio is "
         "chance-corrected, (acc − 1/3)/(acc<sub>ambient</sub> − 1/3), because both accuracies "
         "approach chance (not 0) as D grows — the raw uncorrected ratio of a fully collapsed "
         "method would drift toward 1 instead of 0. Above D≈1000 the denominator itself is small "
-        "(ambient 0.48 at D=1500, 0.44 at D=2000), so the ratio is increasingly "
+        "(ambient 0.44 at D=2000, 0.40 at D=6000), so the ratio is increasingly "
         "noise-sensitive there. "
         "(2) n=1000, matching both the main benchmark and "
-        "the source notebook. (3) toorPIA is additionally probed at <b>D=2000</b> (effective SNR "
-        "≈ 0.0015); the other methods are already at chance well before D=768, so the extension "
-        "is run for toorPIA only (the empty cells read as 'not run', not as failures). At this "
-        "extreme the outcome is <b>noise-realization dependent</b> (the signature of a critical "
-        "regime), so the D=1500 and D=2000 cells each aggregate <b>5 independent noise "
-        "realizations × 3 method seeds</b> (data seeds 42, 0–3): at D=1500 the realizations agree "
-        "(0.90–0.93) while at D=2000 they span 0.58–0.88; D ≤ 768 cells use one realization — "
-        "realization variance is negligible below the breaking regime. "
+        "the source notebook. The generic methods are swept to D=500 — every one of them sits "
+        "at or near chance from D≈300 (0.33–0.54), so higher D adds no information about them "
+        "(the empty cells read as 'not run', not as failures); the embedding arm extends to "
+        "D=768, matching the main benchmark's ambient dimension. (3) <code>basemap_csvform</code> "
+        "is additionally probed at <b>D=2000</b> (effective SNR ≈ 0.0015) and <b>D=6000</b> "
+        "(effective SNR ≈ 0.0005). Deep in a breaking regime the outcome can depend on the "
+        "noise realization, so the D=2000 and D=6000 cells each aggregate <b>5 independent "
+        "noise realizations × 3 method seeds</b> (data seeds 42, 0–3): the realizations agree "
+        "at both (medians 0.94–0.96 at D=2000, 0.80–0.84 at D=6000); D ≤ 768 cells use one "
+        "realization — realization variance is negligible below the breaking regime. "
         "(4) Bracketed ranges are bootstrap 95% CIs over seeds; deterministic methods show a "
         "point value. (5) kNN label accuracy is leave-one-out in the 2-D embedding (k=10; 3 "
         "balanced clusters, chance = 1/3). (6) Reproduce: "
-        "<code>python run/dimsweep.py --dims 6 10 20 40 80 100 200 250 300 400 768 --methods all "
-        "--seeds 3 --n 1000</code>, then "
-        "<code>python run/dimsweep.py --dims 1500 2000 --methods toorPIA --seeds 3 --n 1000 "
+        "<code>python run/dimsweep.py --dims 6 40 80 200 300 400 500 --methods all "
+        "--seeds 3 --n 1000</code>, then the toorPIA-only extensions "
+        "<code>python run/dimsweep.py --dims 768 --methods toorPIA --seeds 3 --n 1000</code> and "
+        "<code>python run/dimsweep.py --dims 2000 6000 --methods toorPIA --seeds 3 --n 1000 "
         "--data-seed 42 0 1 2 3</code> (results merge by (dim, data_seed, method, seed)); the "
-        "embedding arm: <code>python run/dimsweep.py --dims 6 10 20 40 80 100 200 250 300 400 "
+        "embedding arm: <code>python run/dimsweep.py --dims 6 40 80 200 300 400 500 "
         "768 --methods toorPIA --toorpia-endpoint embedding</code>; figures: "
         "<code>python run/dimsweep.py --figures-only</code>. The committed toorPIA caches make "
         "every replay offline.</p>")
@@ -782,6 +844,17 @@ def addplot_section(embed: bool) -> str:
         "cluster's direction? The direction of an addplot point is information: it should say "
         "WHICH normal condition the anomaly departed from. The ambient high-D features resolve "
         "attribution 10/10 (the anchor signal survives SNR=1 noise), so a faithful map can too. "
+        "<b>The result is one-sided: toorPIA is the only method that performs the addplot "
+        "operation correctly — it alone answers both questions.</b> Its anomalies land far "
+        "outside the normal region (9.7× the bulk radius at the median, 8.7× at the minimum — "
+        "unmissable on the map) with 10/10 source attribution (angle to the source cluster "
+        "≤ 2.8°, the two same-kind pair members co-directional within ≈ 0.6°), while its added "
+        "normal controls land inside the bulk as they should. For <b>PCA, Isomap, UMAP, and "
+        "DREAMS the detection question fails silently</b>: every never-seen anomaly is placed "
+        "inside or at the normal clusters (median radius ratio 0.96–1.34, minima down to 0.26), "
+        "so the map raises no alarm at all — their 0.8–1.0 'attribution' carries no information "
+        "an operator can use, because the anomaly is drawn as just another normal point of its "
+        "source cluster. "
         "<b>t-SNE (sklearn), PyMDE, and PCC expose no out-of-sample operation at all</b> — for "
         "monitoring that is itself the finding: adding data means re-fitting, and a re-fit "
         "re-arranges the map.</p>"
@@ -866,7 +939,7 @@ def build(embed: bool) -> str:
         "<h1>DR Fidelity Benchmark — Results Report</h1>"
         "<div class='sub'>Distance-preservation focus · 5 datasets (D=768 · N=1000 · "
         "<b>SNR=1</b>, realistic additive noise) + a time-series dataset (multi-series random "
-        "walks: D=50 · N=3000 · clean) · seeds: R=3 (stochastic methods; PCA / Isomap / "
+        "walks: D=50 · N=4000 · clean) · seeds: R=3 (stochastic methods; PCA / Isomap / "
         "DREAMS / toorPIA are deterministic; transition — committed tables) · CPU/1-thread · reproducible · "
         "<a href='https://github.com/toorpia/dr-fidelity-benchmark'>code &amp; data on GitHub</a>.</div>"
         "<p class='blurb'><b>Thesis.</b> <b>Shepard ρ (full, p=100)</b> reflects <b>global-structure</b> "
@@ -923,11 +996,16 @@ def build(embed: bool) -> str:
         "operation at all. On the "
         "<a href='#random-walk'>time-series dataset</a> (multi-series high-D random walks — "
         "the true shape is a star of jagged, mutually orthogonal spokes) <b>toorPIA leads "
-        "every trajectory readout</b> (full ρ 0.924, within-series 0.970, cross-series "
-        "0.897); DREAMS is second across the board (0.846 / 0.953 / 0.778) but draws the "
-        "spokes as smooth ribbons, while the neighbor-graph methods keep only the step-level "
-        "time order (t-SNE 0.951, DREAMS 0.952 there) and lose the star arrangement entirely "
-        "(cross-series ρ 0.366 / 0.477).</p>")
+        "every trajectory readout</b> (full ρ 0.893, within-series 0.966, cross-series "
+        "0.871); PCC is second on all three (0.877 / 0.950 / 0.860) but smooths the "
+        "step-level saw-tooth away (saw-tooth score 0.44 vs toorPIA 0.71, where 1 = the "
+        "data's own roughness) and strands isolated points off their trajectories, "
+        "DREAMS draws the "
+        "spokes as smooth, fragmented ribbons (3 of the 8 detach from the shared origin), "
+        "and the neighbor-graph methods keep only the local "
+        "time order while erasing the zigzag outright (saw-tooth 0.00) and losing the star "
+        "arrangement entirely "
+        "(cross-series ρ 0.353 / 0.407).</p>")
 
     # ---- reading guide: what we measure + the two figure-backed methodology explanations ----
     lab1 = snr_label(SNRS[0])
@@ -1018,16 +1096,23 @@ def build(embed: bool) -> str:
         "of rank) flags an outright failure: a <b>negative</b> near-band ρ, the table's <b>worst "
         "tightest-cluster crush when it exceeds 5×</b> (crushing destroys information — it cannot "
         "be read back from the map; inflation is legible, if exaggerated), or a <b>negative "
-        "anomaly-pair ρ</b>. In the tightest-cluster column only the value closest to 1 is "
+        "anomaly-pair or minority-pair ρ</b>. In the tightest-cluster column only the value "
+        "closest to 1 is "
         "highlighted (light green); everything below the flag threshold stays uncolored. "
         "Note the composite ranking scores <b>distance "
         "fidelity only</b> (the PRIMARY ρ columns, plus the anomaly-pair ρ on the outliers "
-        "dataset); the k-NN reference block is deliberately unscored — see the recall@k bias "
+        "dataset and the minority-pair ρ on the populations dataset); the k-NN reference block "
+        "is deliberately unscored — see the recall@k bias "
         "note. Bracketed ranges "
         "are bootstrap 95% CIs over seeds (deterministic methods show a single value). The "
         "<b>outliers</b> dataset adds a purple <b>outlier ρ</b> column — the standard Shepard ρ "
         "restricted to the anomaly-involving pairs — and a third ranking column scored on it "
-        "(1st→5 … 5th→1), so the composite Σ there is full + near + outlier.</p>")
+        "(1st→5 … 5th→1), so the composite Σ there is full + near + outlier; the "
+        "<b>populations</b> dataset adds the analogous purple <b>minority ρ</b> column (the "
+        "standard Shepard ρ restricted to the minority-involving pairs) with its own third "
+        "ranking column, so the composite Σ there is full + near + minority. In both cases the "
+        "restricted column exists so that no purely-local reading can outrank the very pairs "
+        "the dataset was built to test.</p>")
 
     # per-dataset
     for d in DATASETS:
@@ -1117,8 +1202,9 @@ def build(embed: bool) -> str:
         "normalization, no centering, and per-row L2 normalization disabled, so it embeds the very "
         "same raw vectors the other methods see and the plain-Euclidean metrics measure "
         "(preprocessing aligned with the evaluation basis). The endpoint exposes no random seed and "
-        "is deterministic up to server jitter (measured run-to-run mean |Δ| ≈ 1e-3 of the map "
-        "scale), so toorPIA is treated as a deterministic method: point values without CI brackets, "
+        "is deterministic up to server jitter (measured run-to-run coordinate difference "
+        "≈ 3e-5 of the map scale — metrically invisible), so toorPIA is treated as a "
+        "deterministic method: point values without CI brackets, "
         "and no run-to-run stability row. Coordinates are cached/committed for offline reproduction "
         "(no API key needed).</p>"
         "<p class='note'><b>DREAMS.</b> t-SNE regularized toward the PCA embedding (Kury, Kobak &amp; "
@@ -1179,9 +1265,9 @@ def build(embed: bool) -> str:
         "<footer>Generated by <code>run/make_report.py</code> from "
         "<code>results/metrics_aggregated.csv</code> + <code>results/stability.csv</code> "
         "(+ <code>results/dimsweep_aggregated.csv</code> for the noise-dims supplement; reproduce "
-        "it with <code>python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all "
-        "--seeds 3 --n 1000</code> plus <code>--dims 1500 2000 --methods toorPIA "
-        "--data-seed 42 0 1 2 3</code>). "
+        "it with <code>python run/dimsweep.py --dims 6 40 80 200 300 400 500 --methods all "
+        "--seeds 3 --n 1000</code> plus the toorPIA-only extensions <code>--dims 768</code> and "
+        "<code>--dims 2000 6000 --methods toorPIA --data-seed 42 0 1 2 3</code>). "
         "This page shows <b>SNR=1</b> (realistic additive noise). Reproduce the full SNR sweep with "
         "<code>python run/benchmark.py --dataset all --methods all --seeds 3 --dim 768 --n 1000 "
         "--snr inf 4 1</code> (or just the reported level with <code>--snr 1</code>), then rebuild this "
