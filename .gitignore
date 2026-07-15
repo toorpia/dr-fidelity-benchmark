@@ -25,6 +25,7 @@ paper/main.bbl
 paper/main.blg
 paper/main.pdf
 paper/arxiv-submission.zip
+paper/arxiv-submission-v*.zip
 # working handoff notes for the paper (internal; not part of the publication)
 paper/HANDOFF_PROMPT.md
 

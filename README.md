@@ -7,7 +7,7 @@ A reproducible benchmark characterizing how faithfully dimensionality-reduction 
 geometry is known.
 
 **Paper:** an arXiv preprint of this benchmark (submission in preparation) lives under [`paper/`](paper/);
-it reports the results frozen at release tag **v1.2.0**, while this README and REPORT.md track the living benchmark.
+it reports the results frozen at release tag **v1.3.0** (eight methods, DREAMS added), while this README and REPORT.md track the living benchmark.
 
 > **New here?** Read *What this measures* → *Results at a glance* → *Key terms* below (≈2 min), then
 > open the **published report** at <https://toorpia.github.io/dr-fidelity-benchmark/> for the
@@ -24,7 +24,7 @@ separately for *near* pairs (fine, within-group structure) and *far* pairs (the 
 Because the test data is synthetic with a **known true geometry**, every method is scored against the
 ground truth instead of by eye.
 
-We compare **seven** methods — PCA, Isomap, t-SNE, UMAP, PyMDE, PCC, and the closed-source
+We compare **eight** methods — PCA, Isomap, t-SNE, UMAP, PyMDE, PCC, DREAMS, and the closed-source
 **toorPIA** — on **five** synthetic datasets (density, clusters, transition, outliers, imbalanced
 populations) plus a **sixth, time-series dataset** (multi-series high-D random walks — open
 trajectories, no clusters). The five share a single, deliberately noise-friendly noise model; see
@@ -34,12 +34,15 @@ trajectories, no clusters). The five share a single, deliberately noise-friendly
 things. **toorPIA preserves both near and global distance structure best overall** — it tops the
 composite (near + global) ranking on two of the three core datasets (density, clusters) and has the
 **highest global Shepard ρ on two of the three** (clusters and transition; PCC edges it out only on
-the density set); on transition the composite goes to **PCC** (toorPIA 3rd — its first-mode near ρ
-trails t-SNE / PCC / UMAP / PCA there despite the best global ρ; the map gallery, however, shows
+the density set); on transition the composite goes to **PCC** (toorPIA joint 3rd with DREAMS — its
+first-mode near ρ trails there despite the best global ρ; the map gallery, however, shows
 toorPIA is the only method that reproduces the dataset's defining geometry — seven dense states AND
 their closed ring connectivity — simultaneously; see the transition section). **PCC** posts a
-high global correlation but **crushes dense clusters almost to points**; **t-SNE** leads the
-first-mode near band on four of the five datasets (toorPIA takes density), and **t-SNE / UMAP** lead
+high global correlation but **crushes dense clusters almost to points**; **DREAMS** (t-SNE
+regularized toward the PCA layout, TMLR 2026) takes the first-mode near band on **all five**
+datasets — yet leads the global ρ nowhere, and the membership-restricted questions (outlier ρ
+0.055, cross-population ρ 0.07, addplot detection ratio ≈1.0) expose the same silent failures as
+the neighbor-graph family; **t-SNE / UMAP** lead
 the conventional neighbor metrics — but both distort global, large-scale distances. On the
 fourth dataset (paired same-kind anomalies, off-subspace), the anomaly-pair Shepard ρ — the
 standard ρ restricted to the outlier-involving pairs, scored into the ranking — puts **toorPIA
@@ -63,13 +66,18 @@ step-level time order and cut the star into disconnected smooth ribbons (cross-s
 - **No method wins everything** — the ranking flips depending on whether you care about *near*
   (within-cluster) or *global* (overall layout) structure.
 - **toorPIA** — best all-rounder on distance fidelity: **tops the composite (near + global) ranking
-  on density and clusters (and on outliers and populations)**, has the **highest global Shepard ρ on
-  two of the three core datasets** (clusters and transition; 2nd on density) and the best first-mode
-  near ρ on density; **on transition it drops to 3rd in the composite** (PCC 1st, t-SNE 2nd — its
-  first-mode near ρ is only 6th there), while the transition map gallery shows it is the only
+  on density and clusters (and on outliers; on populations DREAMS ties its Σ while failing the
+  minority-placement reading)**, has the **highest global Shepard ρ on
+  two of the three core datasets** (clusters and transition; 2nd on density) and the second-best
+  first-mode
+  near ρ on density; **on transition it drops to joint 3rd in the composite with DREAMS** (PCC 1st,
+  t-SNE 2nd — its
+  first-mode near ρ is only 7th there), while the transition map gallery shows it is the only
   method rendering both of that dataset's defining features at once — the seven dense states and
   their closed ring connectivity (Isomap draws the ring but smears the clusters; t-SNE/UMAP keep
-  the clusters but tear the loop; PCC fuses the cycle through a central hub).
+  the clusters but tear the loop; DREAMS keeps the clusters and the cyclic arrangement but tears
+  3 of the 7 bridges — quantified by the bottleneck-gap diagnostic, `run/bridge_gaps.py`; PCC
+  fuses the cycle through a central hub).
   Keeps the tightest cluster's scale closest to the truth overall (0.4–0.8× across the five
   datasets, on the inflation side — legible but exaggerated on density and transition), and is
   deterministic (the embedding endpoint
@@ -489,7 +497,7 @@ global ρ is only meaningful paired with its near band (the central point of thi
 methodology), and neither band reads cleanly against ambient distances that are noise-dominated
 by construction — the full metric set is still computed into `results/dimsweep_per_run.csv`.
 *Sweep spec:*
-D = 6…768 (with the collapse region resolved at D=250 and 300) for the six generic methods and
+D = 6…768 (with the collapse region resolved at D=250 and 300) for the seven generic methods and
 both toorPIA endpoints (the same ambient dimension as the main benchmark, now with zero
 redundancy) plus **csvform-only extensions at D=1500 and D=2000** (5 noise realizations × 3 method
 seeds each — the breaking regime is realization-sensitive); n=1000 (matching both the main
@@ -564,6 +572,7 @@ methods run **R independent seeds** (default R=3); deterministic methods run onc
 | **UMAP** | umap-learn | `n_neighbors=15`, `min_dist=0.1`, `random_state=seed` | yes |
 | **PyMDE** | pymde | `preserve_distances`, `Absolute` loss, `Standardized` constraint, CPU | yes |
 | **PCC** | pccdr | `cluster=False, pearson=True, spearman=False, n_components=2, num_points=N` | yes |
+| **DREAMS** | authors' openTSNE fork | PCA-2 init & reg target, `reg_lambda=0.15`, `perplexity=30`, BH, `n_jobs=1` | no |
 | **toorPIA** | toorpia (remote API) | `basemap_embedding(X, l2_normalization=False)` | no |
 
 Notes:
@@ -579,15 +588,30 @@ Notes:
   so toorPIA is treated as a deterministic method.
 - **toorPIA is placement knob-free** — unlike t-SNE (`perplexity`) or UMAP (`n_neighbors`), no
   user-tunable hyperparameter changes its embedding layout, so the same input yields a unique placement.
-- **Defaults do not decide any leadership (but one sensitivity is real and disclosed)** —
-  `run/hyperparam_sensitivity.py` sweeps t-SNE's `perplexity` and UMAP's `n_neighbors` over 5–100 on
+- **DREAMS** (Kury, Kobak & Damrich, TMLR 2026, arXiv:2508.13747) is t-SNE with a coordinate-level
+  MSE regularization toward the PCA embedding. Install the authors' openTSNE fork:
+  `pip install "git+https://github.com/berenslab/DREAMS.git@tp"` (it installs AS `openTSNE`,
+  replacing the vanilla package — nothing else in this repo imports openTSNE). The fork's current
+  head (`eeea6a6`) crashes every plain `fit()` (a dead `"X"` kwarg leaks into the optimizer);
+  `methods/dreams_method.py` drops the dead kwarg at import time so the installed package stays
+  exactly the published source. Run at the authors' published defaults (PCA-2 as both init and
+  regularization target, `reg_lambda=0.15`). With the fixed PCA init and single-threaded gradient
+  descent it has no remaining randomness (three seeds → byte-identical embeddings), so it is
+  treated as deterministic.
+- **Defaults decide no leadership outright (two sensitivities are real and disclosed)** —
+  `run/hyperparam_sensitivity.py` sweeps t-SNE's `perplexity` and UMAP's `n_neighbors` over 5–100,
+  and DREAMS's `reg_lambda` over 0.05–0.5, on
   density and clusters (SNR=1, R=3). Raising t-SNE's perplexity moves both ranked columns: on
   density, perplexity=100 lifts full ρ 0.30 → 0.60 (mid-pack; still below PCA 0.70 / toorPIA 0.82 /
-  PCC 0.82) and first-mode near ρ 0.26 → 0.41 — at perplexity ≥ 50 t-SNE overtakes toorPIA's density
-  near ρ (0.31); on clusters its near ρ rises 0.39 → 0.54 while full ρ stays flat. Re-scored with the
-  tuned values the composite leaders are unchanged (density: toorPIA 8 vs t-SNE 7; clusters: 9 vs 6),
+  PCC 0.82) and first-mode near ρ 0.26 → 0.41 — at perplexity ≥ 50 t-SNE overtakes the density
+  near-ρ leaders; on clusters its near ρ rises 0.39 → 0.54 while full ρ stays flat. Re-scored with
+  the
+  tuned values toorPIA still tops clusters (8 vs t-SNE 5), but on density tuned t-SNE draws level
+  with toorPIA (7 vs 7),
   and the same settings erode t-SNE's own recall@15 (0.254 → 0.230 / 0.270 → 0.208): the
-  global-vs-local trade-off is intrinsic, not an artifact of the default. UMAP: small gains only
+  global-vs-local trade-off is intrinsic, not an artifact of the default. UMAP: small gains only.
+  DREAMS's `reg_lambda` is a real local–global dial on density (full ρ 0.39 → 0.62 at λ=0.5, still
+  below toorPIA's 0.82, near ρ 0.36–0.41 with the near-band lead kept at every λ); flat on clusters
   (`results/hyperparam_sensitivity_*.csv`, `figures/hyperparam/sensitivity_snr1.png`).
 - **PCC is used label-free** (`cluster=False`): the cluster-supervision (MiCS / CrossEntropy) term is
   disabled entirely; the only objective is the **Pearson** correlation between high-D and 2-D
@@ -635,6 +659,7 @@ only: *what, concretely, is traded away for that speed?*
 | **PCC** (label-free) | **distances to a sampled reference set** (`num_points=N`, sampled **with replacement**) — a column subset of the full pair matrix | O(N·m) per epoch instead of O(N²) |
 | **t-SNE** | **local neighborhoods** (perplexity-scaled affinities; far-pair attractions vanish) | scalability + cluster legibility |
 | **UMAP** | **local neighborhoods** (k-NN graph, k=15, with negative sampling) | scalability + cluster legibility |
+| **DREAMS** | **local neighborhoods** (t-SNE's affinities) plus a **coordinate-level pull toward the PCA layout** — the regularizer constrains each point's absolute 2-D position, not any pairwise distance, so a single point's separation margin enters the loss only through PCA's variance objective | scalability; single-point margins remain unrepresented |
 
 Two consequences of this axis are already measured by the benchmark. The **tightest-cluster scale
 collapse** (over-compression metric): when the loss is dominated by, or restricted to, a subset of
@@ -656,7 +681,7 @@ dataset — **outlier separation**:
 > m points instead of a within-cluster scale. If the results contradict this (e.g. a
 > sparse-constraint method preserves the margin well), they are reported as-is.
 
-Because the 3 anomalous directions are i.i.d.-equivalent replicates and **all seven methods** run
+Because the 3 anomalous directions are i.i.d.-equivalent replicates and **all eight methods** run
 on the dataset, the main results table is itself the test of "does sparse constraint density
 generally imply margin shrinkage" — PyMDE (sparse by design, effectively full-pair at this N) and
 PCC (reference-point sparse) provide the two informative sparse cases.
@@ -800,7 +825,7 @@ We never optimize a method on the same quantity used to score it.
   closest in spirit to the (secondary) stress metric; this is flagged here explicitly.
 - **The pair angle and the addplot readouts coincide with no method's training objective either**:
   the angle between two designated points seen from the bulk centroid, and the nearest-fit-anomaly
-  kind assignment, are geometric readouts of the finished map — none of the seven methods optimizes
+  kind assignment, are geometric readouts of the finished map — none of the eight methods optimizes
   these quantities.
 
 ### Note: reference-set exclusion probe (null result; data retained)
@@ -828,7 +853,10 @@ one cluster stay co-directional (`pair_angle`)? The direction of an addplot poin
 information: it should say *which* normal condition the anomaly departed from. The ambient
 high-D features resolve attribution 10/10 (the anchor signal survives SNR=1 noise), so a
 faithful map can too. Each method maps the added points with its own out-of-sample operation:
-PCA / Isomap `transform` (deterministic), UMAP seeded `transform`, toorPIA server-side
+PCA / Isomap `transform` (deterministic), UMAP seeded `transform`, DREAMS openTSNE's
+partial-optimization `transform` onto the fixed DREAMS basemap, one point per call
+(deterministic; its regularization term is a fit-time objective over the full embedding and does
+not act at transform time), toorPIA server-side
 `addplot_embedding` on the fitted basemap (live `basemap_embedding` + per-row
 `addplot_embedding` in one session, committed as a self-consistent
 `embedding_basemap`/`embedding_addplot` cache pair; the addplot inherits the basemap's
@@ -842,12 +870,15 @@ that answers both questions**: all 10
 anchored anomalies land far outside the normal region (radius ratio median 9.70, min 8.62)
 **and** each one's direction points at its source cluster (attribution
 10/10, angle to own cluster 1.0° median / 3.4° max, pair angle 1.7°) — the map says "this is an
-anomaly, and it departed from cluster k" in one reading. **PCA, Isomap, and UMAP draw the
-anomalies inside or at the normal clusters** (median radius ratio 0.97 / 1.34 / 0.96–1.04,
+anomaly, and it departed from cluster k" in one reading. **PCA, Isomap, UMAP, and DREAMS draw the
+anomalies inside or at the normal clusters** (median radius ratio 0.97 / 1.34 / 0.96–1.04 / 1.04,
 minima down to 0.26): the orthogonal deviation is dropped or interpolated away, so the anomaly
 looks like one more normal point of its source cluster — the nominally high attribution
-(8–10/10) carries no alarm, and detection fails silently. Added normal controls land correctly
-for every operable method (bulk-control ratio 0.87–1.01). t-SNE / PyMDE / PCC: not operable (no
+(8–10/10) carries no alarm, and detection fails silently. DREAMS is the sharpest instance of the
+pattern: the best attribution geometry of the non-toorPIA methods (own-cluster angle 0.8°, pair
+angle 0.2°) at radius ratio 1.04 — a perfect direction with no alarm. Added normal controls land
+correctly
+for every operable method (bulk-control ratio 0.87–1.07). t-SNE / PyMDE / PCC: not operable (no
 out-of-sample transform).
 
 ## Aggregation, statistics, and stability

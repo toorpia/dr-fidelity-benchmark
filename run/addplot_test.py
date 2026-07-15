@@ -19,10 +19,12 @@ The HD reference (ambient features) resolves attribution 10/10 -- the anchor sig
 noise -- so a faithful map can too; ``hd_*`` columns record that ceiling per run.
 
 Which methods can do this at all: PCA and Isomap have a deterministic out-of-sample ``transform``;
-UMAP has a (seeded) ``transform``; toorPIA has a server-side ``addplot`` on the fitted map. t-SNE
-(sklearn), PyMDE, and PCC optimize the fit coordinates directly and expose NO out-of-sample
-operation -- reported as ``supported=False`` rows rather than silently dropped (for monitoring
-that is itself the finding: adding data means re-fitting, and a re-fit re-arranges the map).
+UMAP has a (seeded) ``transform``; DREAMS inherits openTSNE's deterministic partial-optimization
+``transform`` (its regularization term acts only at fit time -- see ``embed_pair``); toorPIA has a
+server-side ``addplot`` on the fitted map. t-SNE (sklearn), PyMDE, and PCC optimize the fit
+coordinates directly and expose NO out-of-sample operation -- reported as ``supported=False`` rows
+rather than silently dropped (for monitoring that is itself the finding: adding data means
+re-fitting, and a re-fit re-arranges the map).
 
 toorPIA honest note: ``addplot_embedding`` targets the server-side state of the basemap, so the
 test performs a live ``basemap_embedding(l2_normalization=False)`` + per-row ``addplot_embedding``
@@ -126,6 +128,18 @@ def embed_pair(method, seed, Xf, Xa, tag):
         import umap
         mdl = umap.UMAP(n_neighbors=15, min_dist=0.1, random_state=seed).fit(Xf)
         return np.asarray(mdl.embedding_, float), np.asarray(mdl.transform(Xa), float)
+    if method == "DREAMS":
+        from methods.dreams_method import fit_dreams
+        emb = fit_dreams(Xf, seed)
+        # The DREAMS regularization is a FIT-TIME objective term (pull toward the PCA scaffold,
+        # sized N_fit x 2); openTSNE's out-of-sample transform optimizes only the new point
+        # against the fixed basemap, where that term does not apply (and its fixed-size
+        # reg_embedding cannot) -- so it is disabled for the transform phase.
+        emb.gradient_descent_params["regularization"] = False
+        # one row per call -- the monitoring semantics: points arrive one at a time
+        Ya = np.vstack([np.asarray(emb.transform(np.ascontiguousarray(Xa[i:i + 1])), float)
+                        for i in range(len(Xa))])
+        return np.asarray(emb, float), Ya  # read Yf AFTER transform (transform re-centers it)
     # toorPIA: live basemap_embedding + addplot_embedding in one session (cache-first,
     # self-consistent pair; the addplot inherits the basemap's preprocessing server-side)
     fit_mode, add_mode = CACHE_MODES
@@ -185,7 +199,7 @@ def main(argv=None):
           f"+ {len(Xa) - n_anom} bulk controls")
 
     rows, panels = [], {}
-    for method in ["PCA", "Isomap", "UMAP", "toorPIA", "t-SNE", "PyMDE", "PCC"]:
+    for method in ["PCA", "Isomap", "UMAP", "DREAMS", "toorPIA", "t-SNE", "PyMDE", "PCC"]:
         if method in UNSUPPORTED:
             rows.append(dict(method=method, seed=0, supported=False, note=UNSUPPORTED[method]))
             print(f"{method:9s} unsupported: {UNSUPPORTED[method]}")

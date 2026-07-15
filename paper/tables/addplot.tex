@@ -1,7 +1,7 @@
 % AUTO-GENERATED from REPORT.md --- do not hand-edit values
 \begin{table}[t]
 \centering
-\caption{Out-of-sample (addplot) monitoring test at SNR${=}1$: cluster-anchored anomalies (3\,Rg along dimensions the normal basemap never varies in) and 50 fresh normal controls, added one at a time to a basemap fitted on normal data only. Detection $=$ anomaly distance from the map centroid over the bulk's median radius (large $=$ visibly outside); attribution $=$ direction from the centroid identifies the source cluster. PCA/Isomap use \texttt{transform}; UMAP a seeded \texttt{transform}; toorPIA server-side \texttt{addplot\_embedding}. t-SNE, PyMDE, and PCC expose no out-of-sample operation. Values transcribed verbatim from the v1.2.0 committed results.}
+\caption{Out-of-sample (addplot) monitoring test at SNR${=}1$: cluster-anchored anomalies (3\,Rg along dimensions the normal basemap never varies in) and 50 fresh normal controls, added one at a time to a basemap fitted on normal data only. Detection $=$ anomaly distance from the map centroid over the bulk's median radius (large $=$ visibly outside); attribution $=$ direction from the centroid identifies the source cluster. PCA/Isomap use \texttt{transform}; UMAP a seeded \texttt{transform}; DREAMS openTSNE's partial-optimization \texttt{transform} (one point per call; its regularization acts only at fit time); toorPIA server-side \texttt{addplot\_embedding}. t-SNE, PyMDE, and PCC expose no out-of-sample operation. Values transcribed verbatim from the v1.3.0 committed results.}
 \label{tab:addplot}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lcccccc}
@@ -14,7 +14,7 @@ PyMDE & \multicolumn{6}{l}{\textit{not operable: pymde optimizes fit coordinates
 PCC & \multicolumn{6}{l}{\textit{not operable: pccdr optimizes fit coordinates; no transform}} \\
 t-SNE & \multicolumn{6}{l}{\textit{not operable: sklearn TSNE has no out-of-sample transform}} \\
 UMAP & 0.971 {\scriptsize[0.962, 1.042]} & 0.281 {\scriptsize[0.261, 0.486]} & 1.000 & 3.334 {\scriptsize[2.176, 3.429]} & 1.559 {\scriptsize[1.220, 3.801]} & 0.939 {\scriptsize[0.935, 1.003]} \\
-toorPIA & 9.702 & 8.617 & 1.000 & 1.014 & 1.730 & 0.930 \\
+DREAMS & 1.038 & 0.532 & 1.000 & 0.819 & 0.240 & 1.066 \\
 \bottomrule
 \end{tabular}}%
 \end{table}
