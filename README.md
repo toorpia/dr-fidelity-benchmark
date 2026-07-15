@@ -7,7 +7,7 @@ A reproducible benchmark characterizing how faithfully dimensionality-reduction 
 geometry is known.
 
 **Paper:** an arXiv preprint of this benchmark (submission in preparation) lives under [`paper/`](paper/);
-it reports the results frozen at release tag **v1.3.0** (eight methods, DREAMS added), while this README and REPORT.md track the living benchmark.
+it reports the results frozen at release tag **v1.3.0**, while this README and REPORT.md track the living benchmark.
 
 > **New here?** Read *What this measures* → *Results at a glance* → *Key terms* below (≈2 min), then
 > open the **published report** at <https://toorpia.github.io/dr-fidelity-benchmark/> for the
