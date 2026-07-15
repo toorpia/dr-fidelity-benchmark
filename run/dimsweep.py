@@ -8,9 +8,12 @@ deliberately not headlined: a global rho is only meaningful paired with its near
 reads cleanly against this probe's noise-dominated ambient. Quantified replication of the notebook
 experiment ``01_hi_dimensional_data_anlaysis.ipynb``.
 
-    python run/dimsweep.py --dims 6 10 20 40 80 100 200 400 768 --methods all --seeds 3 --n 1000
+    python run/dimsweep.py --dims 6 40 80 200 300 400 500 --methods all --seeds 3 --n 1000
+    # toorPIA-only extensions -- embedding arm to D=768, csvform to D=768:
+    python run/dimsweep.py --dims 6 40 80 200 300 400 500 768 --methods toorPIA --toorpia-endpoint embedding
+    python run/dimsweep.py --dims 768 --methods toorPIA --seeds 3 --n 1000
     # extreme-D extension: 5 noise realizations x 3 method seeds (realization-sensitive regime)
-    python run/dimsweep.py --dims 1500 2000 --methods toorPIA --seeds 3 --n 1000 --data-seed 42 0 1 2 3
+    python run/dimsweep.py --dims 2000 6000 --methods toorPIA --seeds 3 --n 1000 --data-seed 42 0 1 2 3
 
 toorPIA appears in this probe through BOTH of its endpoints, in two stages: (1)
 ``--toorpia-endpoint embedding`` (rows labeled ``toorPIA-embedding``; separate
@@ -117,7 +120,7 @@ def toorpia_csvform_embed(X, seed, tag):
 
 DISPLAY = {"toorPIA": "toorPIA (basemap_csvform)",
            "toorPIA-embedding": "toorPIA (basemap_embedding)"}
-GRID_DIMS = (6, 40, 100, 200, 250, 300, 768)
+GRID_DIMS = (6, 40, 200, 300, 400, 500, 768)
 
 
 def build_figures(out_dir, figdir, knn_key, args):
@@ -170,7 +173,7 @@ def build_figures(out_dir, figdir, knn_key, args):
 def main(argv=None):
     p = argparse.ArgumentParser(description="dimensionality sweep on the noise-dims dataset")
     p.add_argument("--dims", nargs="+", type=int,
-                   default=[6, 10, 20, 40, 80, 100, 200, 400, 768])
+                   default=[6, 40, 80, 200, 300, 400, 500])
     p.add_argument("--methods", default="all")
     p.add_argument("--seeds", type=int, default=3)
     p.add_argument("--n", type=int, default=1000)
@@ -267,6 +270,11 @@ def main(argv=None):
         keep = old[[t not in reran for t in old[key].itertuples(index=False, name=None)]]
         per_run = pd.concat([keep, per_run], ignore_index=True)
         per_run = per_run.sort_values(key).reset_index(drop=True)
+    if not len(per_run):
+        # every requested cell was skipped (e.g. API unavailable): writing now would clobber
+        # the committed tables with empty ones -- leave them untouched
+        print("\nDONE. rows=0 (all cells skipped; tables left untouched)")
+        return 1
     per_run.to_csv(per_run_path, index=False)
 
     # aggregate: median + bootstrap 95% CI per (method, dim, metric)
