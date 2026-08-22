@@ -23,6 +23,12 @@ identifiers:
   - type: doi
     value: "10.5281/zenodo.21233959"
     description: "Version DOI (v1.2.0)"
+  - type: doi
+    value: "10.5281/zenodo.21366902"
+    description: "Version DOI (v1.3.0)"
+  - type: doi
+    value: "10.5281/zenodo.21380823"
+    description: "Version DOI (v1.4.0)"
 license: MIT
 repository-code: "https://github.com/toorpia/dr-fidelity-benchmark"
 url: "https://toorpia.github.io/dr-fidelity-benchmark/"

@@ -22,6 +22,7 @@ COL_HDR_MAP = {
     'tight-cluster scale ×': r'scale $\times$', 'recall@15': 'recall@15',
     'trust@15': 'trust@15', 'continuity@15': 'cont.@15',
     'outlier ρ': r'outlier $\rho$',
+    'minority pts': 'minor.', 'minority ρ': r'minority $\rho$',
 }
 
 ADDPLOT_HDR_MAP = {
@@ -45,14 +46,21 @@ SPECS = [
 ]
 
 
-def get_table(md, after_heading, max_rows=7):
+def get_table(md, after_heading):
+    """Return (header, body) of the first markdown table after `after_heading`,
+    taking every row of that table (a table ends at the first non-'|' line)."""
     idx = md.find(after_heading)
     assert idx >= 0, f"heading not found: {after_heading}"
-    seg = md[idx:idx + 9000]
-    lines = [l for l in seg.split('\n') if l.strip().startswith('|')]
+    seg = md[idx:].split('\n')
+    start = next(i for i, l in enumerate(seg) if l.strip().startswith('|'))
+    lines = []
+    for l in seg[start:]:
+        if not l.strip().startswith('|'):
+            break
+        lines.append(l)
     header = [c.strip() for c in lines[0].strip('|').split('|')]
-    body = [[c.strip() for c in l.strip('|').split('|')]
-            for l in lines[2:2 + max_rows]]
+    body = [[c.strip() for c in l.strip('|').split('|')] for l in lines[2:]]
+    assert len(body) == 8, f"{after_heading}: expected 8 method rows, got {len(body)}"
     return header, body
 
 
@@ -92,7 +100,7 @@ def make_note(extra):
             r"deterministic methods (PCA, Isomap, DREAMS, toorPIA) show point values. "
             r"recall/trust/continuity are the variable-radius $k$-NN reference "
             r"block (biased; unscored). Values transcribed verbatim from the "
-            r"v1.3.0 committed results.")
+            r"v1.4.0 committed results.")
 
 
 def main():
@@ -110,8 +118,9 @@ def main():
         hdr_tex = ' & '.join(COL_HDR_MAP.get(h, h) for h in header)
         rows_tex = [' & '.join(texify(c) for c in row) + r' \\'
                     for row in body]
-        note = make_note(' and on the outlier-$\\rho$ order'
-                         if name == 'outliers' else '')
+        note = make_note({'outliers': ' and on the outlier-$\\rho$ order',
+                          'populations': ' and on the minority-$\\rho$ order'}
+                         .get(name, ''))
         colspec = 'l' + 'c' * (ncol - 1)
         tex = ("% AUTO-GENERATED from REPORT.md --- do not hand-edit values\n"
                "\\begin{table}[t]\n\\centering\n"
@@ -150,7 +159,7 @@ def main():
            "per call; its regularization acts only at fit time); toorPIA "
            "server-side \\texttt{addplot\\_embedding}. t-SNE, PyMDE, and PCC "
            "expose no out-of-sample operation. Values transcribed verbatim "
-           "from the v1.3.0 committed results.}\n"
+           "from the v1.4.0 committed results.}\n"
            "\\label{tab:addplot}\n"
            "\\resizebox{\\textwidth}{!}{%\n"
            "\\begin{tabular}{lcccccc}\n\\toprule\n"

@@ -1,3 +1,4 @@
+\pdfoutput=1
 \documentclass[11pt]{article}
 
 \usepackage[utf8]{inputenc}
@@ -412,10 +413,13 @@ Each dataset's ranking table scores \emph{distance fidelity only}. The
 methods are ordered twice --- by full $\rho$ and by first-mode near $\rho$
 (both vs.-ambient) --- and each order awards 5 points to the 1st place down
 to 1 point to the 5th (6th--8th receive 0). The composite $\Sigma$ is the
-sum of the two, and rows are sorted by $\Sigma$. The outliers dataset adds a
-third scored column on the anomaly-pair $\rho$ (same $5\ldots1$ scheme,
-$\Sigma$ = full + near + outlier), so a method cannot rank well there while
-failing the single-point question. The $k$-NN reference block is deliberately
+sum of the two, and rows are sorted by $\Sigma$. The outliers and
+populations datasets each add a third scored column on a
+membership-restricted $\rho$ (same $5\ldots1$ scheme, $\Sigma$ = full +
+near + third): the anomaly-pair $\rho$ on outliers and the minority-pair
+$\rho$ (pairs with at least one minority endpoint) on populations, so a
+method cannot rank well there while failing the single-point or the
+minority question. The $k$-NN reference block is deliberately
 unscored (\S\ref{sec:recallbias}).
 
 Aggregation follows one convention throughout: stochastic methods run
@@ -569,7 +573,7 @@ two datasets connect continuously.
 \section{Results}
 \label{sec:results}
 
-All ranking tables report the committed v1.3.0 results at SNR${=}1$
+All ranking tables report the committed v1.4.0 results at SNR${=}1$
 ($D{=}768$, $N{=}1000$); $\rho$ values are vs.-ambient (the noisy distances
 the methods actually saw). The corresponding vs.-truth values are committed in
 the artifact's per-run CSVs and lead to the same qualitative conclusions.
@@ -640,7 +644,7 @@ fixed-radius global column.
 Seven small dense Gaussian clusters on mutually orthogonal axes (the global
 geometry spans six affine dimensions, so a 2-D linear projection cannot win by
 construction). toorPIA tops the composite ($\Sigma{=}8$: best global $\rho$
-0.586, third-best near band); DREAMS leads the near band (0.469, ahead of
+0.585, third-best near band); DREAMS leads the near band (0.469, ahead of
 t-SNE's 0.393) and places second ($\Sigma{=}6$) despite a fifth-place global
 $\rho$ (0.413); PCC again pairs a competitive global $\rho$ with an
 $\approx$9$\times$ crush of the tightest cluster (Table~\ref{tab:clusters}).
@@ -737,9 +741,9 @@ standard statistic used everywhere else, restricted by \emph{endpoint
 membership} instead of by distance percentile: the anomaly-pair Shepard $\rho$
 (``outlier $\rho$''), which feeds the composite as a third $5..1$ column so
 that no local reading can outrank it (Table~\ref{tab:outliers}). toorPIA is
-clearly first (outlier $\rho$ 0.615, deterministic --- $\approx$4$\times$ the
+clearly first (outlier $\rho$ 0.649, deterministic --- $\approx$4$\times$ the
 runner-up PCA at 0.156), pairs each same-kind anomaly co-directionally
-(pair angle $\le$10$^\circ$), and holds the best global $\rho$ (0.759). The
+(pair angle $\le$10$^\circ$), and holds the best global $\rho$ (0.768). The
 neighbor-graph methods sit at the bottom (t-SNE 0.083, UMAP 0.062): their
 anomalies land at or inside bulk clusters --- t-SNE additionally fuses each
 same-kind pair into a single point, a failure that a local $k$-NN reading
@@ -782,8 +786,8 @@ population whose composition is unknown in advance. Extracting the minority
 from the map requires two readings positive \emph{at once}: the minority drawn
 as a recognizable separate group (cross-population $\rho$) and a trustworthy
 internal structure (minority-internal $\rho$). At 5\%, only toorPIA holds both
-clearly positive (minority-internal 0.211, cross-population 0.654, best global
-$\rho$ 0.813, deterministic). PCA places the minority correctly
+clearly positive (minority-internal 0.244, cross-population 0.660, best global
+$\rho$ 0.821, deterministic). PCA places the minority correctly
 (cross-population 0.683, the best) but its internal structure is gone
 (minority-internal $-0.025$: a correctly placed featureless blob). t-SNE and
 UMAP are the mirror image --- strong minority internals (0.658 / 0.451) with
@@ -792,9 +796,16 @@ distance information. DREAMS inherits exactly t-SNE's failure mode at a
 higher score: minority-internal 0.652 with cross-population 0.068 --- the
 minority is drawn as a coherent group flung to an arbitrary position --- and
 because its near-band $\rho$ (0.469) again leads, DREAMS \emph{ties} toorPIA
-on the two-column composite ($\Sigma{=}8$) while failing the reading the
-dataset exists to test; the diagnostic pair, not the composite, separates
-them. PCC fails both (0.023 / 0.198) --- and the failure is
+on the near + global columns ($5{+}3$ vs.\ $3{+}5$) while failing the reading
+the dataset exists to test; only the third scored column separates them
+($\Sigma{=}12$ vs.\ 10). That column --- the minority-pair $\rho$ over
+every pair with at least one minority endpoint --- is the single number that
+drops if either reading fails (DREAMS 0.137, t-SNE 0.070, UMAP 0.046), but it
+is not the full reading by itself: PCA tops it (0.706, ahead of toorPIA's
+0.685) because at 5\% the minority--majority pairs make up 95\% of the
+minority-involving pairs, so a correctly \emph{placed} blob with no internal
+structure still scores high; the diagnostic pair, not any single composite,
+separates the methods. PCC fails both (0.023 / 0.198) --- and the failure is
 \emph{silent}: PCC still posts the second-best global $\rho$ (0.761), so
 nothing in the global metric warns that the minority was destroyed. This is
 consistent with reference-point subsampling: pairs internal to the minority
@@ -856,17 +867,17 @@ and PCC --- expose no out-of-sample operation at all; for monitoring, that is
 itself the finding: adding data means re-fitting, and a re-fit re-arranges the
 map. Among the operable methods (Table~\ref{tab:addplot}), only toorPIA
 answers both questions: every anomaly lands far outside the normal region
-(median 9.7$\times$ the bulk radius, minimum 8.6$\times$; deterministic) and
+(median 9.7$\times$ the bulk radius, minimum 8.7$\times$; deterministic) and
 its direction identifies the source cluster (attribution 10/10, median angle
-to its own cluster 1.0$^\circ$, pair angle 1.7$^\circ$). For PCA, Isomap,
+to its own cluster 0.9$^\circ$, pair angle 0.6$^\circ$). For PCA, Isomap,
 UMAP, and DREAMS the anomalies land \emph{inside or at} the normal clusters
 (median
-radius ratios 0.96--1.34, minima down to 0.26): the anomaly is drawn as just
+radius ratios 0.97--1.34, minima down to 0.28): the anomaly is drawn as just
 another normal point of its source cluster, so the nominally high attribution
 accuracy (0.8--1.0) carries no alarm --- detection silently fails. DREAMS is
 the sharpest instance of the pattern: the best attribution geometry of the
-non-toorPIA methods (median own-cluster angle 0.8$^\circ$, pair angle
-0.2$^\circ$) attached to a median radius ratio of 1.04 --- a perfect
+non-toorPIA methods (median own-cluster angle 0.5$^\circ$, pair angle
+0.3$^\circ$) attached to a median radius ratio of 1.04 --- a perfect
 direction with no alarm. Added
 normal controls land correctly for every operable method (ratio 0.87--1.07).
 
@@ -937,8 +948,9 @@ family) are always reported alongside the primary ones.
 The transparency this buys is visible in the results themselves: the
 first-mode near band goes to DREAMS --- not toorPIA --- on every
 one of the five datasets; on the transition dataset the composite goes to
-PCC with toorPIA joint third (\S\ref{sec:transition}); on populations DREAMS
-ties toorPIA's composite $\Sigma$ (\S\ref{sec:populations}); and the
+PCC with toorPIA joint third (\S\ref{sec:transition}); on populations the
+scored minority-pair $\rho$ goes to PCA, not toorPIA, and DREAMS ties toorPIA
+on the near + global columns (\S\ref{sec:populations}); and the
 hyperparameter-sensitivity
 sweep discloses that tuned t-SNE overtakes the near-band $\rho$ leaders on
 density and draws level with toorPIA's density composite
@@ -995,24 +1007,24 @@ the methods the $k$-NN reference favors; a recent local-plus-global hybrid
 (DREAMS) that takes the near band on every dataset yet fails the same
 single-point and minority-placement questions as the neighbor-graph family
 --- a failure only the membership-restricted $\rho$ exposes, since on
-populations its two-column composite ties the leader's; and, out of sample,
+populations its near + global columns tie the leader's; and, out of sample,
 one method
 alone placing a never-seen anomaly outside the normal region with a
 direction that identifies its source. No method wins everything --- toorPIA
-leads the composite on density, clusters, and outliers, ties DREAMS on
-populations, and is joint third on
+leads the composite on density, clusters, outliers, and populations, and is
+joint third on
 transition, while DREAMS owns the near band everywhere --- and the
 benchmark reports all of it. Because every number is recomputable offline
 from committed artifacts, including the closed-source method's output
-coordinates, the release (v1.3.0, archived on Zenodo) is intended as a
+coordinates, the release (v1.4.0, archived on Zenodo) is intended as a
 reproducible, externally citable characterization that future work --- and
 other people's papers --- can cite instead of vendor claims.
 
 \section*{Data and Code Availability}
 The benchmark code, committed results, figures, and toorPIA output-coordinate
 caches are available at \url{https://github.com/toorpia/dr-fidelity-benchmark}
-(release tag v1.3.0), archived at Zenodo (version DOI
-\href{https://doi.org/10.5281/zenodo.21366902}{10.5281/zenodo.21366902};
+(release tag v1.4.0), archived at Zenodo (version DOI
+\href{https://doi.org/10.5281/zenodo.21380823}{10.5281/zenodo.21380823};
 all versions:
 \href{https://doi.org/10.5281/zenodo.21189374}{10.5281/zenodo.21189374}).
 This paper reports the results committed at that tag.
