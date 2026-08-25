@@ -29,6 +29,22 @@ identifiers:
   - type: doi
     value: "10.5281/zenodo.21380823"
     description: "Version DOI (v1.4.0)"
+preferred-citation:
+  type: article
+  title: "A Fixed-Radius Distance-Band Benchmark for Dimensionality-Reduction Fidelity"
+  authors:
+    - family-names: "Takaeda"
+      given-names: "Yoshio"
+      email: "takaeda@toor.jpn.com"
+      affiliation: "toor Inc."
+      orcid: "https://orcid.org/0009-0005-4968-9456"
+  year: 2026
+  doi: "10.48550/arXiv.2608.21779"
+  url: "https://arxiv.org/abs/2608.21779"
+  identifiers:
+    - type: other
+      value: "arXiv:2608.21779"
+      description: "arXiv preprint (cs.LG)"
 license: MIT
 repository-code: "https://github.com/toorpia/dr-fidelity-benchmark"
 url: "https://toorpia.github.io/dr-fidelity-benchmark/"

@@ -2,7 +2,7 @@
 
 *(Markdown rendering of `REPORT.html` — same content, generated together. In tables, **bold** = best in column, *italic* = worst, ⚠ = outright failure flag.)*
 
-*A paper version (arXiv submission in preparation) lives under [`paper/`](paper/); it is frozen at release tag **v1.2.0**, while this report tracks the current committed results.*
+*The paper version of this benchmark is [arXiv:2608.21779](https://arxiv.org/abs/2608.21779) (sources under [`paper/`](paper/)); it is frozen at release tag **v1.4.0**, while this report tracks the current committed results.*
 
 Distance-preservation focus · 5 datasets (D=768 · N=1000 · **SNR=1**, realistic additive noise) + a time-series dataset (multi-series random walks: D=50 · N=4000 · clean) · seeds: R=3 (stochastic methods; PCA / Isomap / DREAMS / toorPIA are deterministic; transition — committed tables) · CPU/1-thread · reproducible · [code & data on GitHub](https://github.com/toorpia/dr-fidelity-benchmark).
 

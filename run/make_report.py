@@ -1290,8 +1290,9 @@ class _HtmlToMd(HTMLParser):
     BLOCK_NOTE = ("*(Markdown rendering of `REPORT.html` — same content, generated together. "
                   "In tables, **bold** = best in column, *italic* = worst, ⚠ = outright "
                   "failure flag.)*\n\n"
-                  "*A paper version (arXiv submission in preparation) lives under "
-                  "[`paper/`](paper/); it is frozen at release tag **v1.2.0**, while this "
+                  "*The paper version of this benchmark is "
+                  "[arXiv:2608.21779](https://arxiv.org/abs/2608.21779) (sources under "
+                  "[`paper/`](paper/)); it is frozen at release tag **v1.4.0**, while this "
                   "report tracks the current committed results.*")
 
     def __init__(self):
